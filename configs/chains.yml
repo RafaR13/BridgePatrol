@@ -1,0 +1,10 @@
+chains:
+  ethereum:
+    chain_id: 1
+    rpc_url_env: ETH_RPC_URL
+    confirmations: 12
+
+  ronin:
+    chain_id: 2020
+    rpc_url_env: RONIN_RPC_URL
+    confirmations: 2
