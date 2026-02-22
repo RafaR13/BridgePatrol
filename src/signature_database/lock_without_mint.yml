@@ -1,0 +1,27 @@
+id: LOCK_WITHOUT_MINT
+enabled: true
+name: Lock without Mint (incomplete flow)
+
+description: >
+  A Lock happened on the source chain but no corresponding Mint was observed
+  within a configured time window.
+
+requires:
+  events: [LOCK, MINT]
+  keys: [deposit_id, timestamp]
+  rpc: [eth_getLogs, eth_getBlockByNumber]
+
+params:
+  correlation_key: deposit_id
+  source_event: LOCK
+  required_counterpart: MINT
+  timeout_seconds: 86400   # TODO: check this (maybe different for different chains)
+
+evidence:
+  include_fields:
+    - cctx_id
+    - lock.tx_hash
+    - lock.block_number
+    - lock.timestamp
+    - now_timestamp
+    - timeout_seconds

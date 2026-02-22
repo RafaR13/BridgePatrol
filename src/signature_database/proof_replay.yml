@@ -1,0 +1,25 @@
+id: PROOF_REPLAY
+enabled: true
+name: Proof / deposit_id reused (replay)
+
+description: >
+  The same proof or deposit identifier is used more than once.
+
+requires:
+  events: [MINT, RELEASE]
+  keys: [deposit_id]
+  rpc: [eth_getLogs, eth_getTransactionReceipt]
+
+params:
+  # proof_hash if we have it; otherwise deposit_id is already valuable
+  # unique_field: TODO: get actual correct field
+  event_types: [MINT, RELEASE]
+  max_occurrences: 1
+  # TODO: store proofs, but where ? should we store all ? when can we discard them ?
+
+evidence:
+  include_fields:
+    - unique_field
+    - occurrences
+    - matched_events[].tx_hash
+    - matched_events[].block_number

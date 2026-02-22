@@ -1,0 +1,28 @@
+id: OVER_MINT
+enabled: true
+name: Mint amount exceeds locked amount
+
+description: >
+  Minted amount exceeds locked amount for the same cross-chain transaction.
+
+requires:
+  events: [MINT, LOCK]
+  # keys: [deposit_id, amount]    TODO: check
+  rpc: [eth_getLogs, eth_getTransactionReceipt]
+
+params:
+  # correlation_key: deposit_id   TODO: check
+  left_event: MINT
+  left_field: amount
+  right_event: LOCK
+  right_field: amount
+  comparator: ">"
+  # fees: TODO
+
+evidence:
+  include_fields:
+    - cctx_id
+    - events[].type
+    - events[].amount
+    - events[].token
+    - events[].tx_hash

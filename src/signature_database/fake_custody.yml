@@ -1,0 +1,48 @@
+id: FAKE_CUSTODY
+enabled: true
+name: Deposit event without real transfer (event-state inconsistency)
+
+description: >
+  A Deposit/Lock-like event was emitted but no actual token movement happened.
+
+requires:
+  events: [DEPOSIT, TRANSFER]      # TRANSFER is ERC20 Transfer
+  keys: [token, amount, sender]
+  rpc:
+    - eth_getLogs
+    - eth_getTransactionReceipt
+    - eth_call
+  optional_rpc:
+    - debug_traceTransaction
+
+params:
+  deposit_event_type: DEPOSIT
+  transfer_event_type: TRANSFER
+
+  # Basic checks (cheap):
+  must_find_transfer: true
+  expected_transfer:
+    from_field: sender
+    to_field: custodian
+    amount_field: amount
+    token_field: token
+
+  # Strong checks (optional but powerful):
+  balance_checks:
+    enabled: true
+    custodian_balance_must_increase: true
+    sender_balance_must_decrease: true
+
+  trace_checks:
+    enabled: false   # later maybe
+    must_call_transfer_or_transferFrom: true
+
+evidence:
+  include_fields:
+    - chain
+    - deposit_event.tx_hash
+    - deposit_event.block_number
+    - deposit_event.token
+    - deposit_event.amount
+    - matched_transfer.tx_hash
+    - balance_deltas

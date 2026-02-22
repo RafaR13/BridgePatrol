@@ -1,0 +1,26 @@
+id: MINT_WITHOUT_LOCK
+enabled: true
+name: Mint without corresponding Lock
+
+description: >
+  A Mint occurred on the destination chain without a valid Lock on the source chain.
+
+requires:
+  events: [MINT, LOCK]
+  # keys: TODO
+  rpc: [eth_getLogs, eth_getTransactionReceipt, eth_getBlockByNumber]
+
+params:
+  # correlation_key: TODO
+  check_event: MINT
+  required_counterpart: LOCK
+
+evidence:
+  include_fields:
+    - cctx_id
+    - src_chain
+    - dst_chain
+    - events[].type
+    - events[].tx_hash
+    - events[].block_number
+    - events[].deposit_id

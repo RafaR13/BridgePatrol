@@ -1,0 +1,23 @@
+id: UNAUTHORIZED_EMITTER
+enabled: true
+name: Event emitted by unauthorized contract (event forgery)
+
+description: >
+  A critical event (Lock/Mint/etc.) was emitted by a contract not in the official allowlist.
+
+requires:
+  events: [LOCK, MINT, DEPOSIT, RELEASE, BURN]
+  keys: [emitter_address]
+  rpc: [eth_getLogs, eth_getCode]
+
+params:
+  event_types: [LOCK, MINT, DEPOSIT, RELEASE, BURN]
+  # allowlist: TODO: how to store this ?
+
+evidence:
+  include_fields:
+    - chain
+    - event.type
+    - event.emitter_address
+    - event.tx_hash
+    - code_hash

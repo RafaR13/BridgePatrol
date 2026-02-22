@@ -1,0 +1,29 @@
+id: VALIDATOR_SET_MANIPULATION
+enabled: true
+name: Validator set manipulation / unexpected quorum change
+
+description: >
+  Detects suspicious changes to validator/operator sets or quorum parameters.
+
+requires:
+  events: [VALIDATOR_SET_UPDATED, ROLE_GRANTED, ROLE_REVOKED]
+  keys: [new_set_hash, quorum]
+  rpc: [eth_getLogs, eth_getTransactionReceipt, eth_call]
+
+params:
+  event_types: [VALIDATOR_SET_UPDATED, ROLE_GRANTED, ROLE_REVOKED]
+  change_rate_limits:
+    max_changes_per_day: 2
+  quorum_rules:
+    min_quorum: 3
+    forbid_quorum_decrease: true
+
+evidence:
+  include_fields:
+    - chain
+    - event.type
+    - event.tx_hash
+    - old_set
+    - new_set
+    - old_quorum
+    - new_quorum

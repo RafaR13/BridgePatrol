@@ -1,0 +1,35 @@
+id: TOKEN_APPROVAL_ABUSE
+enabled: true
+name: Token approval abuse (suspicious allowances to bridge contracts)
+
+description: >
+  Detects suspicious Approval patterns (e.g., MAX_UINT allowances) related to bridge contracts.
+
+requires:
+  events: [APPROVAL, TRANSFER]
+  keys: [owner, spender, value]
+  rpc: [eth_getLogs, eth_call]
+
+params:
+  approval_event_type: APPROVAL
+  transfer_event_type: TRANSFER
+
+  # monitored_spenders: how to store them ? when to store them ?
+
+  patterns:
+    detect_max_uint: true
+    max_uint_value: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    frequency_window_seconds: 3600    # TODO: check these values
+    max_approvals_per_window: 10
+
+  optional_state_checks:
+    allowance_query_enabled: true
+
+evidence:
+  include_fields:
+    - chain
+    - approval.owner
+    - approval.spender
+    - approval.value
+    - approval.tx_hash
+    - approvals_in_window

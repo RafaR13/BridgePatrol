@@ -1,0 +1,31 @@
+id: PREMATURE_RELAY
+enabled: true
+name: Mint executed before source finality (premature relay)
+
+description: >
+  A Mint/Release on the destination chain occurred before the source-side Lock
+  reached the required confirmation threshold.
+
+requires:
+  events: [LOCK, MINT]
+  keys: [deposit_id, block_number]
+  rpc: [eth_getLogs, eth_getBlockByNumber]
+
+params:
+  correlation_key: deposit_id
+  source_event: LOCK
+  destination_event: MINT
+
+  # Option A: evaluator computes confirmations from heads (recommended later)
+  # Option B: rely on meta.src_confirmations stored in CCTX (simpler now)
+  confirmation_source: "cctx_meta"
+  confirmation_field: "src_confirmations"
+  required_confirmations: 12  # TODO: check (may be different for different chains)
+
+evidence:
+  include_fields:
+    - cctx_id
+    - lock.block_number
+    - mint.block_number
+    - meta.src_confirmations
+    - required_confirmations
