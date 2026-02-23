@@ -1,18 +1,37 @@
 collectors:
+
   ronin_bridge_eth_side:
     chain: ethereum
-    # Contrato "Ronin Bridge V2" (Ethereum side)
+    profile: ronin_v1
+    role: source
+
     addresses:
-      - "0x64192819ac13ef72bf6b5ae239ac672b43a9af08"
-    # ERC-20 Transfer topic0 (keccak256("Transfer(address,address,uint256)"))
+      - "0x64192819ac13ef72bf6b5ae239ac672b43a9af08"  # Ronin Bridge V2 (ETH side)
+
     topic0:
+      # ERC20 Transfer (auxiliar)
       - "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 
-  # Opcional: listener-style (se quiseres testar estes endereços também)
-  # (Mantém em config porque pode variar por versão / deployment)
-  ronin_bridge_listener_style:
+      # TODO: adicionar eventos específicos da bridge:
+      # - Deposit / Locked
+      # - MessageSent
+      # - WithdrawalInitiated
+      # (substituir pelas signatures reais quando houver)
+
+
+  ronin_bridge_ronin_side:
     chain: ronin
+    profile: ronin_v1
+    role: destination
+
     addresses:
-      - "0x03d1F13c7391F6B5A651143a31034cf728A93694"   # Gateway (exemplo)
+      - "0x03d1F13c7391F6B5A651143a31034cf728A93694"  # Gateway (Ronin side)
+
     topic0:
+      # ERC20 Transfer (auxiliar)
       - "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+
+      # TODO: adicionar:
+      # - Mint
+      # - Release
+      # - ValidatorSetChanged
