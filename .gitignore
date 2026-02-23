@@ -3,3 +3,5 @@
 out/
 .vscode/
 venv/
+out_test/
+__pycache__/

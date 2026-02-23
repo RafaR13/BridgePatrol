@@ -21,8 +21,11 @@ def collect_logs_and_receipts(
     logs_path = os.path.join(out_dir, f"{collector_name}__{chain.name}__logs.jsonl")
     receipts_path = os.path.join(out_dir, f"{collector_name}__{chain.name}__receipts.jsonl")
 
-    addresses = [Web3.to_checksum_address(a) for a in addresses]
-    topic0_list = [t.lower() for t in topic0_list]
+    if addresses:
+        addresses = [Web3.to_checksum_address(a) for a in addresses]
+    else:
+        addresses = None
+    topic0_list = [t.lower() for t in (topic0_list or [])]
 
     txs: Set[str] = set()
     logs_count = 0
@@ -32,9 +35,14 @@ def collect_logs_and_receipts(
             flt = {
                 "fromBlock": a,
                 "toBlock": b,
-                "address": addresses,
-                "topics": [topic0_list],
             }
+            if addresses:
+                flt["address"] = addresses
+            
+            if topic0_list:
+                flt["topics"] = [topic0_list]
+            
+            print(flt)
 
             def _get_logs():
                 return w3.eth.get_logs(flt)

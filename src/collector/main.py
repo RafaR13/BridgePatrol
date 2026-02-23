@@ -11,8 +11,8 @@ def main():
     load_dotenv()
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("--chains", default="configs/chains.yml")
-    ap.add_argument("--collectors", default="configs/collectors.yml")
+    ap.add_argument("--chains", default="../configs/chains.yml")
+    ap.add_argument("--collectors", default="../configs/collectors.yml")
     ap.add_argument("--out", default="out")
     ap.add_argument("--from-block", type=int, default=None)
     ap.add_argument("--to-block", type=int, default=None)
