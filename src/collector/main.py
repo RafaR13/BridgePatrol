@@ -1,11 +1,17 @@
 # main.py
 import argparse
 import os
+import shutil
 from dotenv import load_dotenv
 
 from .config import load_yaml, build_chain_cfgs
 from .rpc import rpc_web3
 from .pipeline import collect_logs_and_receipts
+
+def clear_output_dir(out_dir: str):
+    if os.path.exists(out_dir):
+        shutil.rmtree(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
 
 def main():
     load_dotenv()
@@ -20,7 +26,7 @@ def main():
     ap.add_argument("--chunk-size", type=int, default=500)
     args = ap.parse_args()
 
-    os.makedirs(args.out, exist_ok=True)
+    clear_output_dir(args.out)
 
     chains_doc = load_yaml(args.chains)
     collectors_doc = load_yaml(args.collectors)

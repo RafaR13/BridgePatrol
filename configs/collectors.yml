@@ -1,13 +1,43 @@
 collectors:
-  debug_eth_recent:
-    chain: ethereum
-    addresses: []
-    #topic0: []
+  #debug_eth_recent:
+  #  chain: ethereum
+  #  addresses: []
+  #  #topic0: []
     
-    topic0:
-      - "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef" # Transfer
-      - "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925" # Approval
+  #  topic0:
+  #    - "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef" # Transfer
+  #    - "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925" # Approval
 
+  polygon_bridge_eth_side:
+    chain: ethereum
+    addresses: ["0xA0c68C638235ee32657e8f720a23ceC1bFc77C77", "0x28e4F3a7f651294B9564800b2D01f35189A5bFbE", "0x40ec5b33f54e0e8a33a975908c5ba1c14e5bbbdf", "0x8484Ef722627bf18ca5Ae6BcF031c23E6e922B30"]
+      #- "0xA0c68C638235ee32657e8f720a23ceC1bFc77C77"  # RootChainManager
+      #- "0x28e4F3a7f651294B9564800b2D01f35189A5bFbE"  # StateSender
+      #- "0x40ec5b33f54e0e8a33a975908c5ba1c14e5bbbdf"  # ERC20Predicate (usado para detetar Mints a partir do endereço 0x00...)
+      #- "0x8484Ef722627bf18ca5Ae6BcF031c23E6e922B30"  # specific contract for depositing of native eth 
+
+    topic0: []
+    
+    #topic0:
+    #  - "0x19943806a66a1ca18485295c524021798132924191316b17c768d601552a48b3" # LockedERC20(address,address,address,uint256,uint256)
+    #  - "0x10f1059591464303d8d69784138e078e38d4f4e19570535c3453715833772274" # StateSynced(uint256,address,bytes)
+
+  polygon_bridge_polygon_side:
+    chain: polygon
+    addresses: ["0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa", "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"]
+      #- "0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa"  # ChildChainManager
+      #- "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"  #weth
+    
+    topic0: []
+
+    #topic0:
+      # Transfer (usado para detetar Mints a partir do endereço 0x00...) -- Transfer(address,address,uint256)
+    #  - "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+      # Withdraw (Início do resgate de tokens para Ethereum) -- Withdraw(address,uint256)
+    #  - "0x2a1a8f949826f58f4a3952a65cb2458428172911b3052865ba7902d6b38466e3"
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% #
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% #
 
   #ronin_bridge_eth_side:
   #  chain: ethereum

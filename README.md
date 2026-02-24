@@ -12,3 +12,9 @@ source venv/bin/activate
 cd src
 python3 -m collector.main --last-n-blocks [n] [--chunk-size n] --out ../out_test
 ```
+
+
+## Important links
+- check topic0's of functions: openchain.xyz
+- scan ethereum activity: etherscan.io
+- scan polygon activity: polygonscan.com
