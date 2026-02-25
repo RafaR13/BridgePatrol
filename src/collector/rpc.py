@@ -1,14 +1,13 @@
 import time
 from typing import List, Tuple
-from web3 import Web3
+from .rpcManager import RPCManager
 
-def rpc_web3(rpc_url: str) -> Web3:
-    w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 30}))
-    if not w3.is_connected():
-        raise RuntimeError(f"Failed to connect to RPC: {rpc_url}")
-    return w3
+def rpc_web3(chain_name: str, rpc_envs: List[str]) -> RPCManager:
+    """Initializes and returns an RPCManager instance for the specified chain"""
+    return RPCManager(chain_name, rpc_envs)
 
 def safe_call(fn, retries: int = 5, base_sleep: float = 0.8):
+    """Executes a function with retries and exponential backoff in case of exceptions"""
     last_err = None
     for i in range(retries):
         try:
@@ -19,6 +18,7 @@ def safe_call(fn, retries: int = 5, base_sleep: float = 0.8):
     raise last_err
 
 def chunk_range(start: int, end: int, step: int) -> List[Tuple[int, int]]:
+    """Splits a range of integers into chunks of a specified size"""
     if end < start:
         return []
 

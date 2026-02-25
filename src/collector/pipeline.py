@@ -7,7 +7,7 @@ from .storage import append_jsonl
 from .models import ChainCfg
 
 def collect_logs_and_receipts(
-    w3: Web3,
+    w3_manager: Web3,
     chain: ChainCfg,
     collector_name: str,
     addresses: List[str],
@@ -45,7 +45,7 @@ def collect_logs_and_receipts(
             print(flt)
 
             def _get_logs():
-                return w3.eth.get_logs(flt)
+                return w3_manager.call_with_failover("get_logs", flt)
 
             logs = safe_call(_get_logs)
 
@@ -75,7 +75,7 @@ def collect_logs_and_receipts(
     with open(receipts_path, "a", encoding="utf-8") as rec_f:
         for txh_hex in txs:
             def _get_receipt():
-                return w3.eth.get_transaction_receipt(txh_hex)
+                return w3_manager.call_with_failover("get_transaction_receipt", txh_hex)
 
             r = safe_call(_get_receipt)
             d = dict(r)

@@ -4,5 +4,5 @@ from dataclasses import dataclass
 class ChainCfg:
     name: str
     chain_id: int
-    rpc_url: str
+    rpc_url_list: list
     confirmations: int

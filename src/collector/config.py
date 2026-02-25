@@ -1,4 +1,3 @@
-import os
 import yaml
 from typing import Dict
 from .models import ChainCfg
@@ -8,18 +7,17 @@ def load_yaml(path: str) -> dict:
         return yaml.safe_load(f)
 
 def build_chain_cfgs(chains_doc: dict) -> Dict[str, ChainCfg]:
-    chain_cfgs = {}
+    chain_cfgs: Dict[str, ChainCfg] = {}
 
     for name, c in chains_doc["chains"].items():
-        rpc_env = c["rpc_url_env"]
-        rpc_url = os.environ.get(rpc_env)
-        if not rpc_url:
-            raise RuntimeError(f"Missing env var {rpc_env} for chain '{name}'")
+        rpc_url_list = c.get("rpc_url_list")
+        if not rpc_url_list:
+            raise RuntimeError(f"Missing 'rpc_url_list' for chain '{name}'")
 
         chain_cfgs[name] = ChainCfg(
             name=name,
             chain_id=int(c["chain_id"]),
-            rpc_url=rpc_url,
+            rpc_url_list=list(rpc_url_list),
             confirmations=int(c.get("confirmations", 0)),
         )
 

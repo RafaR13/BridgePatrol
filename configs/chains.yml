@@ -1,15 +1,20 @@
 chains:
   ethereum:
     chain_id: 1
-    rpc_url_env: ETH_RPC_URL
+    rpc_url_list:
+      - "https://ethereum-rpc.publicnode.com"
+      - "ETH_RPC_URL"
     #confirmations: 12
 
   ronin:
     chain_id: 2020
-    rpc_url_env: RONIN_RPC_URL
+    rpc_url_list:
+      - "https://api.roninchain.com/rpc"
     #confirmations: 2
 
   polygon:
     chain_id: 137
-    rpc_url_env: POLYGON_RPC_URL
+    rpc_url_list:
+      - "https://polygon-rpc.publicnode.com"
+      - "https://rpc-mainnet.matic.quiknode.pro"
     #confirmations: 50
