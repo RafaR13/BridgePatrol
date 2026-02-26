@@ -14,6 +14,7 @@ source venv/bin/activate
 ```sh
 cd src
 python3 -m collector.main --last-n-blocks [n] [--chunk-size n] --out ../out_test
+[python3 main.py [realtime/forensic] ... ]
 ```
 
 

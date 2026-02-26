@@ -25,7 +25,7 @@ def collect_logs_and_receipts(
         addresses = [Web3.to_checksum_address(a) for a in addresses]
     else:
         addresses = None
-    topic0_list = [t.lower() for t in (topic0_list or [])]
+    topic0_list = [(t if t.startswith("0x") else "0x" + t).lower() for t in (topic0_list or [])]
 
     txs: Set[str] = set()
     logs_count = 0
@@ -42,7 +42,6 @@ def collect_logs_and_receipts(
             if topic0_list:
                 flt["topics"] = [topic0_list]
             
-            print(flt)
 
             def _get_logs():
                 return w3_manager.call_with_failover("get_logs", flt)
