@@ -23,3 +23,6 @@ python3 -m collector.main --last-n-blocks [n] [--chunk-size n] --out ../out_test
 - scan ethereum activity: [etherscan.io](https://etherscan.io/)
 - scan polygon activity: [polygonscan.com](https://polygonscan.com/)
 - search for bridges: https://defillama.com/bridges
+
+
+ir buscar automaticamente os melhores rpc's ???????
