@@ -9,12 +9,15 @@ source venv/bin/activate
 [deactivate]
 ```
 
+## Run tests
+```sh
+python3 -m pytest [tests/TEST_NAME.py]
+```
+
 ## Correr colector
 
 ```sh
-cd src
-python3 -m collector.main --last-n-blocks [n] [--chunk-size n] --out ../out_test
-[python3 main.py [realtime/forensic] ... ]
+python3 -m __init__ [realtime/forensic] --bridge [bridge name] --chains [chain1, chain2, ...] --last-n-blocks [n]
 ```
 
 
@@ -23,6 +26,3 @@ python3 -m collector.main --last-n-blocks [n] [--chunk-size n] --out ../out_test
 - scan ethereum activity: [etherscan.io](https://etherscan.io/)
 - scan polygon activity: [polygonscan.com](https://polygonscan.com/)
 - search for bridges: https://defillama.com/bridges
-
-
-ir buscar automaticamente os melhores rpc's ???????
