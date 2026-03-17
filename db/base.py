@@ -1,5 +1,5 @@
 from sqlalchemy import text
-from .connection import get_session
+from .database import get_session
 
 
 def list_tables():
@@ -97,7 +97,3 @@ def count_rows(table_name):
     finally:        session.close()
 
 # TODO: add actual fetching functions depending on what we need (fetch_cctx(), fetch_events(), fetch_locks()...)
-
-def fetch_bridge_cctxs(bridge_name, limit=10):
-    """Fetch cross-chain transactions for a specific bridge"""
-    return fetch_rows(f"{bridge_name}_cross_chain_transactions", limit=limit, order_by="id")
