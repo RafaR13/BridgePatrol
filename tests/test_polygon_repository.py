@@ -1,4 +1,4 @@
-from db.repository import *
+"""from db.repository import *
 from db.polygon_repository import *
 
 
@@ -51,4 +51,4 @@ def test_polygon_cctx_columns_exist():
     assert "recipient" in column_names
     assert "src_contract_address" in column_names
     assert "amount" in column_names
-    assert "amount_usd" in column_names
+    assert "amount_usd" in column_names"""

@@ -1,5 +1,5 @@
 from sqlalchemy import text
-from db.connection import get_session
+from db.database import get_session
 
 
 def test_database_connection():

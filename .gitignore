@@ -1,7 +1,4 @@
 .env
-.env.example
-out/
 .vscode/
-venv/
-out_test/
 __pycache__/
+.venv/
