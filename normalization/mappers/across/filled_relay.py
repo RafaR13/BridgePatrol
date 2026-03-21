@@ -1,5 +1,5 @@
 from normalization.event_types import NormalizedEventType
-from db.repository.normalized_event_model import NormalizedEvent
+from db.repository.normalized_event.normalized_event_model import NormalizedEvent
 from normalization.common.utils import to_json, to_str
 
 

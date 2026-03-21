@@ -1,7 +1,7 @@
 from sqlalchemy import text
 
 from db.database import get_session
-from db.repository.normalized_event_model import NormalizedEvent
+from db.repository.normalized_event.normalized_event_model import NormalizedEvent
 from normalization.runners.normalize_across import normalize_across
 
 from db.database import Base
