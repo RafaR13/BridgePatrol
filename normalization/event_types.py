@@ -6,6 +6,12 @@ from enum import Enum
 class NormalizedEventType(str, Enum):
     TX = "TX"
 
+    # ronin
+    DEPOSIT_REQUESTED = "DEPOSIT_REQUESTED"
+    TOKEN_DEPOSITED = "TOKEN_DEPOSITED"
+    WITHDRAWAL_REQUESTED = "WITHDRAWAL_REQUESTED"
+    TOKEN_WITHDREW = "TOKEN_WITHDREW"
+
     # Lock / mint / burn / release
     LOCK = "LOCK"
     LOCK_REQUESTED = "LOCK_REQUESTED"
