@@ -6,6 +6,7 @@
 ```sh
 python3 -m venv venv    # in project root
 source venv/bin/activate
+pip install -r requirements.txt
 [deactivate]
 ```
 
@@ -14,11 +15,17 @@ source venv/bin/activate
 python3 -m pytest [tests/TEST_NAME.py]
 ```
 
-## Correr colector
-
+## [Helper] Clear tables
 ```sh
-python3 -m __init__ [realtime/forensic] --bridge [bridge name] --chains [chain1, chain2, ...] --last-n-blocks [n]
+python3 -m helpers.clear_tables --table cctp_deposit_for_burn
+
+python3 -m helpers.clear_tables --bridge cctp
+
+python3 -m helpers.clear_tablesy --all
 ```
+### options
+- --yes (doesn't ask for confirmation)
+- --dry-run (shows what would be erased but doesn't execute)
 
 
 ## Important links
