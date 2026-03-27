@@ -1,13 +1,7 @@
 from db.database import get_session
 
 from db.repository.normalized_event.normalized_event_repository import NormalizedEventRepository
-from normalization.source_models.across import (
-    AcrossFundsDeposited,
-    AcrossFilledRelay,
-    AcrossRelayerRefund,
-)
 from normalization.common.transaction_context import get_tx_context
-from normalization.mappers.across.mapper import map_funds_deposited, map_filled_relay, map_relayer_refund
 
 def normalize_table(session, model, bridge: str, raw_table: str, raw_pk_fn, mapper_fn):
     inserted = 0

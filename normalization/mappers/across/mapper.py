@@ -52,7 +52,7 @@ def map_relayer_refund(row, tx_ctx):
         transaction_hash=row.transaction_hash,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
-        event_type=NormalizedEventType.REFUND_EXECUTED,
+        event_type=NormalizedEventType.RELAYER_REFUND,
         correlation_id=str(row.root_bundle_id),
         correlation_type="root_bundle_id",
         actor_from=row.caller,

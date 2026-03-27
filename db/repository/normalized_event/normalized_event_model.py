@@ -22,10 +22,7 @@ class NormalizedEvent(Base):
     log_index = Column(Integer, nullable=True)
 
     # normalized semantics
-    event_type = Column(
-        SAEnum(NormalizedEventType, name="normalized_event_type"),
-        nullable=False,
-    )
+    event_type = Column(String(64), nullable=False)
 
     # correlation
     correlation_id = Column(String(128), nullable=True)

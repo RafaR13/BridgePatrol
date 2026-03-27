@@ -104,7 +104,7 @@ def map_debridge_claimed_unlock(row, tx_ctx):
         transaction_hash=row.transaction_hash,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
-        event_type=NormalizedEventType.UNLOCK_CLAIMED,
+        event_type=NormalizedEventType.CLAIMED_UNLOCK,
         correlation_id=row.order_id,
         correlation_type="order_id",
         src_blockchain=None,

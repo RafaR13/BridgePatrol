@@ -68,7 +68,7 @@ def normalize_omnibridge():
         (
             OmnibridgeUserRequestForAffirmation,
             "omnibridge_user_request_for_affirmation",
-            lambda row: str(row.message_id) if row.message_id else str(row.src_transaction_hash),
+            lambda row: str(row.message_id) if row.message_id else str(row.transaction_hash),
             map_user_request_for_affirmation,
         )
     ]

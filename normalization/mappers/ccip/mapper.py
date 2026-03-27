@@ -48,7 +48,7 @@ def map_ccip_execution_state_changed(row, tx_ctx):
         transaction_hash=row.transaction_hash,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
-        event_type=NormalizedEventType.MESSAGE_EXECUTION_STATE,
+        event_type=NormalizedEventType.MESSAGE_EXECUTION_STATE_CHANGED,
         correlation_id=row.message_id,
         correlation_type="message_id",
         src_blockchain=None,
