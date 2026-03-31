@@ -73,6 +73,20 @@ class NormalizedEventRepository:
         finally:
             session.close()
 
+    def get_events_by_event_type(event_type: str, bridge_name: str) -> list[NormalizedEvent]:
+        session = get_session()
+        try:
+            return (
+                session.query(NormalizedEvent)
+                .filter(
+                    NormalizedEvent.event_type == event_type,
+                    NormalizedEvent.bridge == bridge_name,
+                )
+                .all()
+            )
+        finally:
+            session.close()
+
     # UNCOMMENT IF NEEDED IN THE FUTURE
     """
     def get_replay_candidates():

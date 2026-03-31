@@ -1,7 +1,7 @@
 from sqlalchemy import BigInteger, Column, Enum as SAEnum, String
 
 from db.database import Base
-from signature_detection.types import AlertSeverity, AlertStatus, SignatureType
+from signature_detection.constants import AlertSeverity, AlertStatus, SignatureType
 
 
 class DetectionAlert(Base):
@@ -17,11 +17,11 @@ class DetectionAlert(Base):
         SAEnum(AlertSeverity, name="alert_severity"),
         nullable=False,
     )
-    status = Column(
-        SAEnum(AlertStatus, name="alert_status"),
-        nullable=False,
-        default=AlertStatus.OPEN,
-    )
+    #status = Column(
+    #    SAEnum(AlertStatus, name="alert_status"),
+    #    nullable=False,
+    #    default=AlertStatus.OPEN,
+    #)
 
     bridge = Column(String(32), nullable=False)
     correlation_id = Column(String(128), nullable=True)
