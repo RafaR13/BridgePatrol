@@ -1,5 +1,5 @@
 from db.database import get_session
-from normalization.source_models import RoninCrossChainTransaction
+from normalization.source_models.ronin import RoninCrossChainTransaction
 
 class RoninCrossChainTransactionRepository:
     def get_all(self):

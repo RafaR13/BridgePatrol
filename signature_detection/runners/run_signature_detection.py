@@ -1,6 +1,7 @@
 from db.database import engine, Base
 from db.repository.detection_alert.detection_alert_repository import DetectionAlertRepository
 from signature_detection.signature_scripts.source_destination import check_all_signatures
+from signature_detection.signature_scripts.cctx_analysis import check_cctxs
 from config.constants import Bridges
 
 
@@ -10,6 +11,7 @@ def run_for_bridge(bridge: str, persist: bool = False):
 
 
     alerts = check_all_signatures(bridge)
+    alerts.extend(check_cctxs(bridge))
 
     if persist and alerts:
         repo = DetectionAlertRepository()

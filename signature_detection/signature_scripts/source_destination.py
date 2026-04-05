@@ -171,7 +171,7 @@ def proof_replay(bridge: str, source: NormalizedEventType, destination: Normaliz
     return alerts
 
 
-def check_all_signatures(bridge: str):
+def check_all_signatures(bridge: str) -> list[DetectionAlert]:
     alerts = []
     
     alerts.extend(lock_without_mint(bridge))
