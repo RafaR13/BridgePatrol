@@ -1,4 +1,4 @@
-from normalization.source_models.debridge import (
+from db.repository.bridge_tables.debridge import (
     DeBridgeCreatedOrder,
     DeBridgeFulfilledOrder,
     DeBridgeClaimedUnlock

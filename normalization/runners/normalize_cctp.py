@@ -1,4 +1,4 @@
-from normalization.source_models.cctp import (
+from db.repository.bridge_tables.cctp import (
     CCTPDepositForBurn,
     CCTPMessageReceived
 )

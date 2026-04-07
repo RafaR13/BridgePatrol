@@ -1,5 +1,5 @@
-from normalization.source_models.ronin import RoninBlockchainTransaction
-from normalization.source_models.across import AcrossBlockchainTransaction
+from db.repository.bridge_tables.ronin import RoninBlockchainTransaction
+from db.repository.bridge_tables.across import AcrossBlockchainTransaction
 
 def get_tx_context(session, tx_hash: str, bridge: str):
     if bridge == "across":

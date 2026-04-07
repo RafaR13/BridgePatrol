@@ -1,4 +1,4 @@
-from normalization.source_models.across import (
+from db.repository.bridge_tables.across import (
     AcrossFundsDeposited,
     AcrossFilledRelay,
     AcrossRelayerRefund,

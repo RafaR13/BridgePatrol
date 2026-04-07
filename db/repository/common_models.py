@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, BigInteger, Numeric
+from sqlalchemy import JSON, Column, String, Integer, BigInteger, Numeric
 from db.database import Base
 
 class BlockchainTransaction(Base):
@@ -13,5 +13,6 @@ class BlockchainTransaction(Base):
     status = Column(Integer, nullable=False)
     value = Column(Numeric(30, 0), nullable=True)
     input_data = Column(String(35000), nullable=True)
+    decoded_input_data = Column(JSON, nullable=True)
     fee = Column(Numeric(30, 0), nullable=False)
 

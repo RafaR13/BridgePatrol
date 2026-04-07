@@ -1,4 +1,4 @@
-from normalization.source_models.ccip import (
+from db.repository.bridge_tables.ccip import (
     CCIPSendRequested,
     CCIPExecutionStateChanged,
 )

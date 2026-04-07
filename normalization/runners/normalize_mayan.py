@@ -1,4 +1,4 @@
-from normalization.source_models.mayan import *
+from db.repository.bridge_tables.mayan import *
 
 from normalization.mappers.mayan.mapper import *
 from .runner import normalize

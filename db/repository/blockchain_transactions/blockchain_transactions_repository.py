@@ -1,5 +1,5 @@
 from db.database import get_session
-from normalization.source_models.ronin import RoninBlockchainTransaction
+from db.repository.bridge_tables.ronin import RoninBlockchainTransaction
 
 class RoninBlockchainTransactionRepository:
     def get_all(self):

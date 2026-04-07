@@ -1,4 +1,4 @@
-from normalization.source_models.omnibridge import (
+from db.repository.bridge_tables.omnibridge import (
     OmnibridgeTokensBridgingInitiated,
     OmnibridgeTokensBridged,
     OmnibridgeRelayedMessage,

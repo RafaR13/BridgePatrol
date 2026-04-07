@@ -1,4 +1,4 @@
-from normalization.source_models.ronin import (
+from db.repository.bridge_tables.ronin import (
     RoninDepositRequested,
     RoninTokenDeposited,
     RoninWithdrawalRequested,

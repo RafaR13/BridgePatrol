@@ -1,4 +1,4 @@
-from normalization.source_models.polygon import (
+from db.repository.bridge_tables.polygon import (
     PolygonLockedToken,
     PolygonStateSynced,
     PolygonExitedToken,
