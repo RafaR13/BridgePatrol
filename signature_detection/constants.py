@@ -28,10 +28,12 @@ class SignatureType(str, Enum):
 
 @dataclass(frozen=True)
 class BridgeFlow:
-    lock: NormalizedEventType
-    mint: NormalizedEventType
-    burn: NormalizedEventType
-    release: NormalizedEventType
+    lock: NormalizedEventType | None = None
+    mint: NormalizedEventType | None = None
+    burn: NormalizedEventType  | None = None
+    release: NormalizedEventType  | None = None
+    source: NormalizedEventType  | None = None
+    destination: NormalizedEventType  | None = None
 
 BRIDGE_EVENT_MAP: Dict[str, BridgeFlow] = {
     "ronin": BridgeFlow(
@@ -39,5 +41,31 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeFlow] = {
         mint=NormalizedEventType.TOKEN_DEPOSITED,
         burn=NormalizedEventType.WITHDRAWAL_REQUESTED,
         release=NormalizedEventType.TOKEN_WITHDREW
+    ),
+    "polygon": BridgeFlow(
+        lock=NormalizedEventType.DEPOSIT_REQUESTED,
+        mint=NormalizedEventType.TOKEN_DEPOSITED,
+        burn=NormalizedEventType.WITHDRAWAL_REQUESTED,
+        release=NormalizedEventType.TOKEN_WITHDREW
+    ),
+    "omnibridge": BridgeFlow(
+        lock=NormalizedEventType.BRIDGING_INITIATED,
+        mint=NormalizedEventType.TOKENS_BRIDGED,
+        burn=NormalizedEventType.USER_REQUEST_FOR_AFFIRMATION,
+        release=NormalizedEventType.AFFIRMATION_COMPLETED,
+    ),
+    
+    "ccip": BridgeFlow(
+        source=NormalizedEventType.MESSAGE_SENT,
+        destination=NormalizedEventType.MESSAGE_EXECUTION_STATE_CHANGED,
+    ),
+    "cctp": BridgeFlow(
+        burn=NormalizedEventType.DEPOSIT_FOR_BURN,
+        mint=NormalizedEventType.MESSAGE_RECEIVED
+    ),
+    "across": BridgeFlow(
+        source=NormalizedEventType.DEPOSIT_INTENT,
+        destination=NormalizedEventType.FILL_EXECUTED,
     )
+    # TODO: add mayan and debridge, but they are kinda different
 }

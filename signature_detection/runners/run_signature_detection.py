@@ -1,17 +1,23 @@
 from db.database import engine, Base
 from db.repository.detection_alert.detection_alert_repository import DetectionAlertRepository
-from signature_detection.signature_scripts.source_destination import check_all_signatures
-from signature_detection.signature_scripts.cctx_analysis import check_cctxs
+from signature_detection.signature_scripts.roninAnalyser import RoninAnalyser
 from config.constants import Bridges
+from db.repository.detection_alert.detection_alert_model import DetectionAlert
 
 
-def run_for_bridge(bridge: str, persist: bool = False):
+def run_for_bridge(bridge: str, persist: bool = False) -> list[DetectionAlert]:
     # ensure tables exist
     Base.metadata.create_all(bind=engine)
+    analyser = None
 
-
-    alerts = check_all_signatures(bridge)
-    alerts.extend(check_cctxs(bridge))
+    if bridge not in Bridges:
+        raise ValueError(f"Bridge {bridge} is not recognized. Valid bridges are: {Bridges}")
+    if bridge == "ronin":
+        analyser = RoninAnalyser()
+    else:
+        return []
+    
+    alerts = analyser.analyse_all()
 
     if persist and alerts:
         repo = DetectionAlertRepository()
@@ -19,14 +25,14 @@ def run_for_bridge(bridge: str, persist: bool = False):
 
     return alerts
 
-def run_for_bridges(bridges: list[str], persist: bool = False):
+def run_for_bridges(bridges: list[str], persist: bool = False) -> list[DetectionAlert]:
     all_alerts = []
     for bridge in bridges:
         alerts = run_for_bridge(bridge, persist=persist)
         all_alerts.extend(alerts)
     return all_alerts
 
-def run_for_all_bridges(persist: bool = False):
+def run_for_all_bridges(persist: bool = False) -> list[DetectionAlert]:
     all_alerts = []
     for bridge in Bridges:
         all_alerts.extend(run_for_bridge(bridge=bridge, persist=persist))
