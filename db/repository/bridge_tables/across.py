@@ -63,10 +63,10 @@ class AcrossFundsDeposited(Base):
     message = Column(String, nullable=True)
 
 
-class AcrossBlockchainTransaction(BlockchainTransaction):
+class AcrossBlockchainTransactions(BlockchainTransaction):
     __tablename__ = "across_blockchain_transactions"
 
-class AcrossCrossChainTransaction(Base):
+class AcrossCrossChainTransactions(Base):
     __tablename__ = "across_cross_chain_transactions"
 
     src_blockchain = Column(String(10), nullable=False)

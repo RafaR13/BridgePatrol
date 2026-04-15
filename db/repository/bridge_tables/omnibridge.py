@@ -105,7 +105,7 @@ class OmnibridgeUserRequestForAffirmation(Base):
     value = Column(Numeric(30, 0), nullable=True)
 
 
-class OmnibridgeBlockchainTransaction(BlockchainTransaction):
+class OmnibridgeBlockchainTransactions(BlockchainTransaction):
     __tablename__ = "omnibridge_blockchain_transaction"
 
 

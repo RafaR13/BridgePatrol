@@ -24,6 +24,21 @@ class RoninAnalyser(Analyser):
     def fetch_crosschain_transactions(self):
         return RoninCrossChainTransactionRepository.get_all()
 
+    def analyse_crosschain_transactions(self) -> List[DetectionAlert]:
+        alerts = []
+
+        # 0 - fetch cross-chain transactions
+        crosschain_txs = self.fetch_crosschain_transactions()
+
+        return alerts
+
+        # 1 - check for token discrepancies
+        for tx in crosschain_txs:
+            if tx.src_contract_address != tx.dst_source_contract_address or \
+                tx.src_destination_contract_address != tx.dst_contract_address:
+                pass # TODO: raise alert
+        
+        # TODO: add more cctx checks
 
     def analyse_proofs(self) -> List[DetectionAlert]:
         alerts = []
@@ -72,13 +87,5 @@ class RoninAnalyser(Analyser):
         for key, txs in receipts.items():
             if len(txs) > 1:
                 pass # TODO: raise alert
-        
-
-        # 6 - fetch validator addresses from the signatures, and check if they are valid and belong to the list of official validators. Also check if there are any stale or weak signers (e.g. ones that haven't signed in a long time, or ones that have been compromised in the past)
-            #1- get valid ronin validators
-                # either statically or dinamically from the blockchain
-            #2- reconstruct the message hash (encode _receipt like the contract does, then hash it)
-            #3- recover the signer address from each signature, and check if it is in the list of valid validators, and check its signing history for staleness or weakness
-            #4 - check for same validator signing multiple times for same receipt
 
         return alerts

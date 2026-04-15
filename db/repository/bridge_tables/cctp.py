@@ -32,11 +32,11 @@ class CCTPMessageReceived(Base):
     amount = Column(Numeric(30, 0), nullable=False)
 
 
-class CCTPBlockchainTransaction(BlockchainTransaction):
+class CCTPBlockchainTransactions(BlockchainTransaction):
     __tablename__ = "cctp_blockchain_transactions"
 
 
-class CctpCrossChainTransactions(Base):
+class CCTPCrossChainTransactions(Base):
     __tablename__ = "cctp_cross_chain_transactions"
 
     id = Column(BigInteger, nullable=False, autoincrement=True, primary_key=True)

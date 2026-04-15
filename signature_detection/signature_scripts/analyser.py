@@ -18,7 +18,7 @@ class Analyser(ABC):
     def __init__(self, bridge: str):
         self.bridge = bridge
     
-    def pick_first(events: list[NormalizedEvent]) -> NormalizedEvent | None:
+    def pick_first(self, events: list[NormalizedEvent]) -> NormalizedEvent | None:
         """Helper function to pick the first event from a list, or return None if the list is empty."""
         return events[0] if events else None
 
@@ -48,6 +48,14 @@ class Analyser(ABC):
 
         return grouped_events
 
+    @abstractmethod
+    def fetch_blockchain_transactions(self):
+        pass
+
+    @abstractmethod
+    def fetch_crosschain_transactions(self):
+        pass
+
     def create_detection_alert(
             self, 
             signature_type: SignatureType, 
@@ -73,28 +81,19 @@ class Analyser(ABC):
             description=description,
             created_at_ts=created_at_ts,
         )
-
-    @abstractmethod
-    def fetch_blockchain_transactions(self):
-        pass
-
-    @abstractmethod
-    def fetch_crosschain_transactions(self):
-        pass
-
+    
     def analyse_source_destination(self) -> List[DetectionAlert]:
         """Run source/destination event correlation checks."""
-        alerts = []
+        alerts: List[DetectionAlert] = []
 
         alerts.extend(self.lock_without_mint(self.bridge))
         alerts.extend(self.mint_without_lock(self.bridge))
         alerts.extend(self.over_mint(self.bridge))
         alerts.extend(self.over_release(self.bridge))
-        alerts.extend(self.proof_replay(self.bridge, BRIDGE_EVENT_MAP[self.bridge].lock, BRIDGE_EVENT_MAP[self.bridge].mint))
-        alerts.extend(self.proof_replay(self.bridge, BRIDGE_EVENT_MAP[self.bridge].burn, BRIDGE_EVENT_MAP[self.bridge].release))
         return alerts
 
-    def analyse_cctxs(self) -> List[DetectionAlert]:
+    @abstractmethod
+    def analyse_crosschain_transactions(self) -> List[DetectionAlert]:
         """Run cross-chain transaction checks."""
         raise NotImplementedError
 
@@ -109,7 +108,7 @@ class Analyser(ABC):
         """
         alerts: List[DetectionAlert] = []
         alerts.extend(self.analyse_source_destination())
-        alerts.extend(self.analyse_cctxs())
+        alerts.extend(self.analyse_crosschain_transactions())
         alerts.extend(self.analyse_proofs())
         return alerts
     
@@ -217,39 +216,7 @@ class Analyser(ABC):
                         ))
         return alerts
 
-    def proof_replay(self, bridge: str, source: NormalizedEventType, destination: NormalizedEventType) -> list[DetectionAlert]:
-        grouped_events = self.fetch_event_pairs(bridge, source, destination)
-        # check if the same lock event is used for multiple mint events (potential proof replay attack)
-        alerts = []
-        for correlation_id, events in grouped_events.items():
-            if len(events["source"]) == 1 and len(events["destination"]) > 1:
-
-                # #######################################################################################
-                # TODO: check if it's possible to have multiple locks and multiple mints for the same id,
-                # and still be in normal behaviour
-                # #######################################################################################
-                
-                lock_event = self.pick_first(events["source"])
-                mint_events = events["destination"]
-                for mint_event in mint_events:
-                    alerts.append(self.create_detection_alert(
-                        signature_type=SignatureType.PROOF_REPLAY,
-                        severity=AlertSeverity.LOW,
-                        bridge=bridge,
-                        correlation_id=correlation_id,
-                        correlation_type=lock_event.correlation_type,
-                        src_event_id=lock_event.id,
-                        dst_event_id=mint_event.id,
-                        title=f"{bridge}: potential proof replay attack detected",
-                        description=(
-                            f"Found multiple mint / release events corresponding to the same lock / burn event {lock_event.event_type} "
-                            f"with correlation_id={correlation_id}, which may indicate a proof replay attack."
-                        ),
-                        created_at_ts=mint_event.timestamp,
-                    ))
-        return alerts
-
-    def check_replays(self, bridge: str, source: NormalizedEventType, destination: NormalizedEventType) -> list[DetectionAlert]:
+    def detect_replays(self, bridge: str, source: NormalizedEventType, destination: NormalizedEventType) -> list[DetectionAlert]:
         grouped_events = self.fetch_event_pairs(bridge, source, destination)
         alerts: list[DetectionAlert] = []
 

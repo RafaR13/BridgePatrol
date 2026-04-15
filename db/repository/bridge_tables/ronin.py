@@ -71,11 +71,11 @@ class RoninTokenWithdrew(Base):
     amount = Column(Numeric(30, 0), nullable=False)
 
 
-class RoninBlockchainTransaction(BlockchainTransaction):
+class RoninBlockchainTransactions(BlockchainTransaction):
     __tablename__ = "ronin_blockchain_transactions"
 
 
-class RoninCrossChainTransaction(Base):
+class RoninCrossChainTransactions(Base):
     __tablename__ = "ronin_cross_chain_transactions"
 
     id = Column(BigInteger, nullable=False, autoincrement=True, primary_key=True)

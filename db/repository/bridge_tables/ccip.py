@@ -35,7 +35,7 @@ class CCIPExecutionStateChanged(Base):
     return_data = Column(String(500), nullable=False)
 
 
-class CCIPBlockchainTransaction(BlockchainTransaction):
+class CCIPBlockchainTransactions(BlockchainTransaction):
     __tablename__ = "ccip_blockchain_transactions"
 
 

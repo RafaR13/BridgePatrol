@@ -248,11 +248,11 @@ class MayanAuctionClose(Base):
     initializer = Column(String(44), nullable=False)
 
 
-class MayanBlockchainTransaction(BlockchainTransaction):
+class MayanBlockchainTransactions(BlockchainTransaction):
     __tablename__ = "mayan_blockchain_transactions"
 
 
-class MayanCrossChainTransaction(Base):
+class MayanCrossChainTransactions(Base):
     __tablename__ = "mayan_cross_chain_transactions"
 
     src_blockchain = Column(String(10), nullable=False)

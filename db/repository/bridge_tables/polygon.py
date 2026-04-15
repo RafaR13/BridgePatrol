@@ -84,7 +84,7 @@ class PolygonBridgeWithdraw(Base):
     amount = Column(Numeric(30, 0), nullable=False)
 
 
-class PolygonBlockchainTransaction(BlockchainTransaction):
+class PolygonBlockchainTransactions(BlockchainTransaction):
     __tablename__ = "polygon_blockchain_transactions"
 
 
