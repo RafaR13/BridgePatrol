@@ -1,5 +1,5 @@
-from db.repository.bridge_tables.ronin import RoninBlockchainTransaction
-from db.repository.bridge_tables.across import AcrossBlockchainTransaction
+from db.repository.bridge_tables.ronin import RoninBlockchainTransactions
+from db.repository.bridge_tables.across import AcrossBlockchainTransactions
 
 def get_tx_context(session, tx_hash: str, bridge: str):
     if bridge == "across":
@@ -10,13 +10,13 @@ def get_tx_context(session, tx_hash: str, bridge: str):
 
 def get_across_tx_context(session, tx_hash: str):
     return (
-        session.query(AcrossBlockchainTransaction)
-        .filter(AcrossBlockchainTransaction.transaction_hash == tx_hash)
+        session.query(AcrossBlockchainTransactions)
+        .filter(AcrossBlockchainTransactions.transaction_hash == tx_hash)
         .first()
     )
 
 def get_ronin_tx_context(session, tx_hash: str):
-    return (session.query(RoninBlockchainTransaction)
-            .filter(RoninBlockchainTransaction.transaction_hash == tx_hash)
+    return (session.query(RoninBlockchainTransactions)
+            .filter(RoninBlockchainTransactions.transaction_hash == tx_hash)
             .first()
             )

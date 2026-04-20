@@ -2,30 +2,24 @@
 import argparse
 from dataclasses import dataclass
 from typing import List, Optional
+from signature_detection.runners.run_signature_detection import run_for_bridge
+from normalization.runners.runner import run_normalization_for_bridge
 
 
 @dataclass(frozen=True)
 class CliArgs:
-    mode: str
     bridge: str
-    chains: List[str]
-
-    # forensic only
-    from_block: Optional[int] = None
-    to_block: Optional[int] = None
-    from_ts: Optional[int] = None
-    to_ts: Optional[int] = None
-    last_n_blocks: Optional[int] = None
+    blockchains: List[str]
+    start_ts: int
+    end_ts: int
+    need_extraction: bool
+    store_alerts: bool
 
 
 class Cli:
     """
-    Usage examples:
-      collector realtime --bridge polygon-pos --chains polygon ethereum
-
-      collector forensic --bridge polygon-pos --chains polygon ethereum --last-n-blocks 100
-      collector forensic --bridge polygon-pos --chains polygon ethereum --from-block 100 --to-block 200
-      collector forensic --bridge polygon-pos --chains polygon ethereum --from-ts 1700000000 --to-ts 1700003600
+    Usage example:
+      collector --bridge polygon-pos --blockchains polygon ethereum --start-ts 1700000000 --end-ts 1700000000
     """
 
     def __init__(self, argv: Optional[List[str]] = None) -> None:
@@ -34,109 +28,81 @@ class Cli:
 
     def _build_parser() -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser()
-
-        sub = parser.add_subparsers(dest="mode", required=True)
-
-        # -------- realtime --------
-        realtime = sub.add_parser("realtime", help="Run realtime analysis")
-        Cli._add_common_args(realtime)
-
-
-        # -------- forensic --------
-        forensic = sub.add_parser("forensic", help="Run forensic (bounded) analysis")
-        Cli._add_common_args(forensic)
-
-        # Mutually exclusive time-range options (exactly one required)
-        window = forensic.add_mutually_exclusive_group(required=True)
-
-        # Option 1: block range (requires both)
-        block = window.add_argument_group("block_range")
-        block.add_argument("--from-block", type=int, default=None)
-        block.add_argument("--to-block", type=int, default=None)
-
-        # Option 2: timestamp range (requires both)
-        ts = window.add_argument_group("timestamp_range")
-        ts.add_argument("--from-ts", type=int, default=None, help="Unix timestamp (seconds) You can run \"python3 src/helpers/getUnixTimestamp.py [yyyy-mm-dd] --time [hh:mm:ss]\" to get the Unix timestamp on a given date")
-        ts.add_argument("--to-ts", type=int, default=None, help="Unix timestamp (seconds). You can run \"python3 src/helpers/getUnixTimestamp.py [yyyy-mm-dd] --time [hh:mm:ss]\" to get the Unix timestamp on a given date")
-
-        # Option 3: last N blocks
-        window.add_argument("--last-n-blocks", type=int, default=None)
-
+        Cli._add_common_args(parser)
         return parser
 
     def _add_common_args(p: argparse.ArgumentParser) -> None:
         p.add_argument("--bridge", required=True, help="Bridge identifier to analyze")
         p.add_argument(
-            "--chains",
+            "--blockchains",
             nargs="+",
             required=True,
-            help='Chain names to include, e.g. --chains polygon ethereum',
+            help="Chain names to include, e.g. --blockchains polygon ethereum",
         )
+        p.add_argument(
+            "--start-ts",
+            type=int,
+            required=True,
+            help=(
+                "Unix timestamp (seconds). You can run "
+                '"python3 src/helpers/getUnixTimestamp.py [yyyy-mm-dd] --time [hh:mm:ss]" '
+                "to get the Unix timestamp on a given date."
+            ),
+        )
+        p.add_argument(
+            "--end-ts",
+            type=int,
+            required=True,
+            help=(
+                "Unix timestamp (seconds). You can run "
+                '"python3 src/helpers/getUnixTimestamp.py [yyyy-mm-dd] --time [hh:mm:ss]" '
+                "to get the Unix timestamp on a given date."
+            ),
+        )
+        p.add_argument("--need-extraction", help="Whether to run the extraction phase (default: False)", action="store_true")
+        p.add_argument("--store-alerts", help="Whether to store generated alerts in the database (default: False)", action="store_true")
 
     def parse(argv: Optional[List[str]] = None) -> CliArgs:
         parser = Cli._build_parser()
         ns = parser.parse_args(argv)
 
-        # forensic validation for paired args
-        if ns.mode == "forensic":
-            has_block = (ns.from_block is not None) or (ns.to_block is not None)
-            has_ts = (ns.from_ts is not None) or (ns.to_ts is not None)
-            has_last = (ns.last_n_blocks is not None)
+        if ns.start_ts < 0:
+            parser.error("--start-ts must be a non-negative Unix timestamp.")
 
-            # check that exactly one of the three options is selected
-            selected = sum([1 if (ns.from_block is not None or ns.to_block is not None) else 0,
-                            1 if (ns.from_ts is not None or ns.to_ts is not None) else 0,
-                            1 if (ns.last_n_blocks is not None) else 0])
-            if selected != 1:
-                parser.error(
-                    "Forensic requires exactly one window option: "
-                    "(--from-block & --to-block) OR (--from-ts & --to-ts) OR (--last-n-blocks)."
-                )
-
-            if has_block:
-                if ns.from_block is None or ns.to_block is None:
-                    parser.error("--from-block and --to-block must be used together.")
-                if ns.from_block < 0 or ns.to_block < 0:
-                    parser.error("Block numbers must be non-negative.")
-                if ns.from_block > ns.to_block:
-                    parser.error("--from-block must be <= --to-block.")
-
-            if has_ts:
-                if ns.from_ts is None or ns.to_ts is None:
-                    parser.error("--from-ts and --to-ts must be used together.")
-                if ns.from_ts < 0 or ns.to_ts < 0:
-                    parser.error("Timestamps must be non-negative Unix seconds.")
-                if ns.from_ts > ns.to_ts:
-                    parser.error("--from-ts must be <= --to-ts.")
-
-            if has_last:
-                if ns.last_n_blocks <= 0:
-                    parser.error("--last-n-blocks must be > 0.")
+        if ns.end_ts < 0:
+            parser.error("--end-ts must be a non-negative Unix timestamp.")
 
         return CliArgs(
-            mode=ns.mode,
             bridge=ns.bridge,
-            chains=ns.chains,
-            from_block=getattr(ns, "from_block", None),
-            to_block=getattr(ns, "to_block", None),
-            from_ts=getattr(ns, "from_ts", None),
-            to_ts=getattr(ns, "to_ts", None),
-            last_n_blocks=getattr(ns, "last_n_blocks", None),
+            blockchains=ns.blockchains,
+            start_ts=ns.start_ts,
+            end_ts=ns.end_ts,
+            need_extraction=ns.need_extraction if hasattr(ns, "need_extraction") else False,
+            store_alerts=ns.store_alerts if hasattr(ns, "store_alerts") else False
         )
 
     def run() -> int:
-
         args = Cli.parse()
+        print(
+            "Analysis under construction ... :) "
+            f"(bridge={args.bridge}, blockchains={args.blockchains}, start_ts={args.start_ts}, end_ts={args.end_ts}, need_extraction={args.need_extraction}, store_alerts={args.store_alerts})"
+        )
 
-        if args.mode == "realtime":
-            print(f"Realtime analysis under construction ... :) (bridge={args.bridge}, chains={args.chains})")
-            # TODO: initiate real time analysis here
-            return 0
+        # if extraction is needed, call XChainDataGen
+        if args.need_extraction:
+            print("Running extraction phase...\n")
+            # TODO: call XChainDataGen here to extract and generate cctx's
+            print("Extraction phase completed.\n")
+        
+        # normalize logs and receipts
+        run_normalization_for_bridge(args.bridge)
 
-        if args.mode == "forensic":
-            print(f"Forensic analysis under construction ... :) (bridge={args.bridge}, chains={args.chains})")
-            # TODO: initiate forensic analysis here
-            return 0
-
-        # argparse should prevent reaching here
-        raise RuntimeError(f"Unknown mode: {args.mode}")
+        # run signature detection
+        alerts = []
+        print("Running signature detection phase...\n")
+        alerts = run_for_bridge(args.bridge, persist=args.store_alerts)
+        for alert in alerts:
+            print(alert + "\n")
+        print("Signature detection phase completed.\n")
+        print(f"Total alerts detected: {len(alerts)}")
+        return 0
