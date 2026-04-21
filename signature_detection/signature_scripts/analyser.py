@@ -67,7 +67,8 @@ class Analyser(ABC):
             dst_event_id: int | None, 
             title: str, 
             description: str, 
-            created_at_ts: int
+            created_at_ts: int,
+            probability: str
             ) -> DetectionAlert:
         return DetectionAlert(
             signature_type=signature_type,
@@ -80,6 +81,7 @@ class Analyser(ABC):
             title=title,
             description=description,
             created_at_ts=created_at_ts,
+            probability=probability
         )
     
     def analyse_source_destination(self) -> List[DetectionAlert]:
@@ -134,6 +136,7 @@ class Analyser(ABC):
                             f"correlation_id={correlation_id}, but no matching mint event."
                         ),
                         created_at_ts=lock_event.timestamp,
+                        probability="TODO"
                     ))
         return alerts
 
@@ -159,6 +162,7 @@ class Analyser(ABC):
                             f"correlation_id={correlation_id}, but no matching lock event."
                         ),
                         created_at_ts=mint_event.timestamp,
+                        probability="TODO"
                     ))
         return alerts
 
@@ -186,6 +190,7 @@ class Analyser(ABC):
                                 f"with amount {lock_event.amount_out} for correlation_id={correlation_id}."
                             ),
                             created_at_ts=mint_event.timestamp,
+                            probability="TODO"
                         ))
         return alerts
 
@@ -213,6 +218,7 @@ class Analyser(ABC):
                                 f"with amount {burn_event.amount_out} for correlation_id={correlation_id}."
                             ),
                             created_at_ts=release_event.timestamp,
+                            probability="TODO"
                         ))
         return alerts
 
@@ -284,6 +290,7 @@ class Analyser(ABC):
                             f"This suggests the same lock/burn may have been consumed more than once."
                         ),
                         created_at_ts=dst_event.timestamp,
+                        probability="TODO"
                         )
                     )
 
@@ -306,6 +313,7 @@ class Analyser(ABC):
                                 f"This is stronger evidence of replay, mutation, or malformed processing."
                             ),
                             created_at_ts=dst_event.timestamp,
+                            probability="TODO"
                         )
                     )
 
@@ -329,6 +337,7 @@ class Analyser(ABC):
                             f"but may also indicate replay or duplicate ingestion."
                         ),
                         created_at_ts=dst_event.timestamp,
+                        probability="TODO"
                     )
                     )
 

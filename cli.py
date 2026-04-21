@@ -1,6 +1,9 @@
 # cli.py
 import argparse
+import subprocess
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional
 from signature_detection.runners.run_signature_detection import run_for_bridge
 from normalization.runners.runner import run_normalization_for_bridge
@@ -13,13 +16,14 @@ class CliArgs:
     start_ts: int
     end_ts: int
     need_extraction: bool
+    need_normalization: bool
     store_alerts: bool
 
 
 class Cli:
     """
     Usage example:
-      collector --bridge polygon-pos --blockchains polygon ethereum --start-ts 1700000000 --end-ts 1700000000
+      collector --bridge polygon-pos --blockchains polygon ethereum --start-ts 1700000000 --end-ts 1700000000 --need-extraction --need-normalization --store-alerts
     """
 
     def __init__(self, argv: Optional[List[str]] = None) -> None:
@@ -60,6 +64,7 @@ class Cli:
             ),
         )
         p.add_argument("--need-extraction", help="Whether to run the extraction phase (default: False)", action="store_true")
+        p.add_argument("--need-normalization", help="Whether to run the normalization phase (default: False)", action="store_true")
         p.add_argument("--store-alerts", help="Whether to store generated alerts in the database (default: False)", action="store_true")
 
     def parse(argv: Optional[List[str]] = None) -> CliArgs:
@@ -78,6 +83,7 @@ class Cli:
             start_ts=ns.start_ts,
             end_ts=ns.end_ts,
             need_extraction=ns.need_extraction if hasattr(ns, "need_extraction") else False,
+            need_normalization=ns.need_normalization if hasattr(ns, "need_normalization") else False,
             store_alerts=ns.store_alerts if hasattr(ns, "store_alerts") else False
         )
 
@@ -85,17 +91,48 @@ class Cli:
         args = Cli.parse()
         print(
             "Analysis under construction ... :) "
-            f"(bridge={args.bridge}, blockchains={args.blockchains}, start_ts={args.start_ts}, end_ts={args.end_ts}, need_extraction={args.need_extraction}, store_alerts={args.store_alerts})"
+            f"(bridge={args.bridge}, blockchains={args.blockchains}, start_ts={args.start_ts}, end_ts={args.end_ts}, need_extraction={args.need_extraction}, need_normalization={args.need_normalization}, store_alerts={args.store_alerts})"
         )
 
         # if extraction is needed, call XChainDataGen
         if args.need_extraction:
             print("Running extraction phase...\n")
-            # TODO: call XChainDataGen here to extract and generate cctx's
+            xchain_root = Path(__file__).resolve().parents[1] / "XChainDataGen"
+            xchain_entrypoint = xchain_root / "__init__.py"
+
+            if not xchain_entrypoint.exists():
+                raise FileNotFoundError(f"XChainDataGen entrypoint not found at {xchain_entrypoint}")
+
+            extract_cmd = [
+                sys.executable,
+                str(xchain_entrypoint),
+                "extract",
+                "--bridge",
+                args.bridge,
+                "--start_ts",
+                str(args.start_ts),
+                "--end_ts",
+                str(args.end_ts),
+                "--blockchains",
+                *args.blockchains,
+            ]
+            generate_cmd = [
+                sys.executable,
+                str(xchain_entrypoint),
+                "generate",
+                "--bridge",
+                args.bridge,
+            ]
+
+            subprocess.run(extract_cmd, cwd=xchain_root, check=True)
+            subprocess.run(generate_cmd, cwd=xchain_root, check=True)
             print("Extraction phase completed.\n")
         
         # normalize logs and receipts
-        run_normalization_for_bridge(args.bridge)
+        if args.need_normalization:
+            print("Running normalization phase...\n")
+            run_normalization_for_bridge(args.bridge)
+            print("Normalization phase completed.\n")
 
         # run signature detection
         alerts = []

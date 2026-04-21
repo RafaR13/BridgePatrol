@@ -35,8 +35,21 @@ class DetectionAlert(Base):
 
     created_at_ts = Column(BigInteger, nullable=True)
 
+    probability = Column(String(4000), nullable=False)
+
     def __repr__(self):
+        signature_type = getattr(self.signature_type, "value", self.signature_type)
+        severity = getattr(self.severity, "value", self.severity)
         return (
-            f"<DetectionAlert(id={self.id}, signature_type={self.signature_type}, "
-            f"bridge={self.bridge}, correlation_id={self.correlation_id})>"
+            f"<DetectionAlert(id={self.id}, "
+            f"signature_type={signature_type}, "
+            f"severity={severity}, "
+            f"bridge={self.bridge}, "
+            f"correlation_type={self.correlation_type}, "
+            f"correlation_id={self.correlation_id}, "
+            f"src_event_id={self.src_event_id}, "
+            f"dst_event_id={self.dst_event_id}), "
+            f"title={self.title}, "
+            f"description={self.description}, "
+            f"probability={self.probability}>"
         )
