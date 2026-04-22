@@ -137,7 +137,7 @@ class Cli:
         # run signature detection
         alerts = []
         print("Running signature detection phase...\n")
-        alerts = run_for_bridge(args.bridge, persist=args.store_alerts)
+        alerts = run_for_bridge(args.bridge, start_ts=args.start_ts, end_ts=args.end_ts, persist=args.store_alerts)
         for alert in alerts:
             print(alert + "\n")
         print("Signature detection phase completed.\n")

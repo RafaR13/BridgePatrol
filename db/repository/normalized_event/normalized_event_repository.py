@@ -87,6 +87,17 @@ class NormalizedEventRepository:
         finally:
             session.close()
 
+    def get_latest_block_number_by_bridge(bridge_name: str) -> int | None:
+        session = get_session()
+        try:
+            return (
+                session.query(func.max(NormalizedEvent.block_number))
+                .filter(NormalizedEvent.bridge == bridge_name)
+                .scalar()
+            )
+        finally:
+            session.close()
+
     # UNCOMMENT IF NEEDED IN THE FUTURE
     """
     def get_replay_candidates():

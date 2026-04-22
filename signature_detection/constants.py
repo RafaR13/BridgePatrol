@@ -4,6 +4,9 @@ from typing import Dict
 
 from normalization.event_types import NormalizedEventType
 
+from signature_detection.signature_scripts.roninAnalyser import RoninAnalyser
+from signature_detection.signature_scripts.polygonAnalyser import PolygonAnalyser
+
 
 class AlertSeverity(str, Enum):
     LOW = "LOW"
@@ -69,3 +72,37 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeFlow] = {
     )
     # TODO: add mayan and debridge, but they are kinda different
 }
+
+class Bridges(Enum): # supported bridges
+    STARGATE = "stargate"
+    CCTP = "cctp"
+    CCIP = "ccip"
+    ACROSS = "across"
+    POLYGON = "polygon"
+    RONIN = "ronin"
+    OMNIBRIDGE = "omnibridge"
+    DEBRIDGE = "debridge"
+    MAYAN = "mayan"
+
+ANALYSER_BY_BRIDGE = {
+    Bridges.RONIN.value: RoninAnalyser,
+    Bridges.POLYGON.value: PolygonAnalyser,
+}
+
+TIME_THRESHOLDS = {
+    # times after which we consider a lock/mint pair to be suspicious if the corresponding mint/lock event has not been observed
+    Bridges.RONIN.value: 3600,  # 1 hour
+    Bridges.POLYGON.value: 3600,  # 1 hour
+    Bridges.OMNIBRIDGE.value: 3600,  # 1 hour
+    Bridges.CCIP.value: 3600,  # 1 hour
+    Bridges.CCTP.value: 3600,  # 1 hour
+    Bridges.ACROSS.value: 3600,  # 1 hour
+}
+
+class BlockConfirmationThresholds(int, Enum):
+    RONIN = 120
+    POLYGON = 180
+    OMNIBRIDGE = 20
+    CCIP = 20
+    CCTP = 20
+    ACROSS = 20

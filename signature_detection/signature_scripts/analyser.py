@@ -11,7 +11,7 @@ from db.repository.detection_alert.detection_alert_model import DetectionAlert
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
 from db.repository.normalized_event.normalized_event_repository import NormalizedEventRepository
 from normalization.event_types import NormalizedEventType
-from signature_detection.constants import BRIDGE_EVENT_MAP, AlertSeverity, SignatureType
+from signature_detection.constants import BRIDGE_EVENT_MAP, TIME_THRESHOLDS, BlockConfirmationThresholds, AlertSeverity, SignatureType
 
 
 class Analyser(ABC):
@@ -84,12 +84,12 @@ class Analyser(ABC):
             probability=probability
         )
     
-    def analyse_source_destination(self) -> List[DetectionAlert]:
+    def analyse_source_destination(self, start_ts: int, end_ts: int) -> List[DetectionAlert]:
         """Run source/destination event correlation checks."""
         alerts: List[DetectionAlert] = []
 
-        alerts.extend(self.lock_without_mint(self.bridge))
-        alerts.extend(self.mint_without_lock(self.bridge))
+        alerts.extend(self.lock_without_mint(self.bridge, start_ts, end_ts))
+        alerts.extend(self.mint_without_lock(self.bridge, start_ts, end_ts))
         alerts.extend(self.over_mint(self.bridge))
         alerts.extend(self.over_release(self.bridge))
         return alerts
@@ -104,66 +104,144 @@ class Analyser(ABC):
         """Run proof-related checks."""
         raise NotImplementedError
 
-    def analyse_all(self) -> List[DetectionAlert]:
+    def analyse_all(self, start_ts: int, end_ts: int) -> List[DetectionAlert]:
         """
         Run every analyser stage and return a single alert list.
         """
         alerts: List[DetectionAlert] = []
-        alerts.extend(self.analyse_source_destination())
+        alerts.extend(self.analyse_source_destination(start_ts, end_ts))
         alerts.extend(self.analyse_crosschain_transactions())
         alerts.extend(self.analyse_proofs())
         return alerts
     
-    def lock_without_mint(self,bridge: str) -> list[DetectionAlert]:
+    def lock_without_mint(self, bridge: str, start_ts: int, end_ts: int) -> list[DetectionAlert]:
+        """lock event without a corresponding mint event"""
+        # TODO: check if proof was sent but no mint occured
         grouped_events = self.fetch_event_pairs(bridge, BRIDGE_EVENT_MAP[bridge].lock, BRIDGE_EVENT_MAP[bridge].mint)
-        # 4: detect lock events without corresponding mint events
         alerts = []
+
+        time_threshold = TIME_THRESHOLDS.get(bridge, 3600)
+        number_of_blocks_to_confirm = BlockConfirmationThresholds.get(bridge, 12)
+        latest_block_number = 67 # TODO: call XChainDataGen to get latest block number for the chain
+        
+        blockchain_transactions = self.fetch_blockchain_transactions()
+        tx_block_numbers = {
+            tx.transaction_hash: tx.block_number
+            for tx in blockchain_transactions
+            if tx.transaction_hash is not None and tx.block_number is not None
+        }
+        tx_timestamps = {
+            tx.transaction_hash: tx.timestamp
+            for tx in blockchain_transactions
+            if tx.transaction_hash is not None and tx.timestamp is not None
+        }
+        
         for correlation_id, events in grouped_events.items():
             if events["source"] and not events["destination"]:
-                for event in events["source"]:
-                    lock_event = self.pick_first(events["source"])
-                    alerts.append(self.create_detection_alert(
-                        signature_type=SignatureType.LOCK_WITHOUT_MINT,
-                        severity=AlertSeverity.LOW,
-                        bridge=bridge,
-                        correlation_id=correlation_id,
-                        correlation_type=lock_event.correlation_type,
-                        src_event_id=lock_event.id,
-                        dst_event_id=None,
+                lock_event = self.pick_first(events["source"])
+                
+                # no lock event too, so keep going
+                if lock_event is None:
+                    continue
+
+                event_timestamp = tx_timestamps.get(lock_event.transaction_hash, lock_event.timestamp)
+                event_block_number = tx_block_numbers.get(lock_event.transaction_hash, lock_event.block_number)
+                event_age = end_ts - event_timestamp if event_timestamp is not None else None
+
+                # block is recent if it is close enough to the latest block (depending on each chain's threshold)
+                is_recent_block = (
+                    latest_block_number is not None
+                    and event_block_number is not None
+                    and latest_block_number - event_block_number <= number_of_blocks_to_confirm
+                )
+                event_is_within_time_threshold = event_age is not None and event_age < time_threshold
+
+                severity = AlertSeverity.MEDIUM
+                description_suffix = "No matching mint event was observed."
+                if is_recent_block or event_is_within_time_threshold:
+                    severity = AlertSeverity.LOW
+                    description_suffix = (
+                        "No matching mint event was observed yet, but the lock is still within the expected processing window."
+                    )
+
+                alerts.append(self.create_detection_alert(
+                    signature_type=SignatureType.LOCK_WITHOUT_MINT,
+                    severity=severity,
+                    bridge=bridge,
+                    correlation_id=correlation_id,
+                    correlation_type=lock_event.correlation_type,
+                    src_event_id=lock_event.id,
+                    dst_event_id=None,
                         title=f"{bridge}: lock event without corresponding mint event",
                         description=(
-                            f"Found lock event {lock_event.event_type} with "
-                            f"correlation_id={correlation_id}, but no matching mint event."
+                            f"Found lock event {lock_event.event_type} with correlation_id={correlation_id}. "
+                            f"{description_suffix}"
                         ),
-                        created_at_ts=lock_event.timestamp,
-                        probability="TODO"
-                    ))
+                    created_at_ts=event_timestamp if event_timestamp is not None else lock_event.timestamp,
+                    probability="TODO"
+                ))
         return alerts
 
-    def mint_without_lock(self, bridge: str) -> list[DetectionAlert]:
+    def mint_without_lock(self, bridge: str, start_ts: int, end_ts: int) -> list[DetectionAlert]:
         grouped_events = self.fetch_event_pairs(bridge, BRIDGE_EVENT_MAP[bridge].mint, BRIDGE_EVENT_MAP[bridge].lock)
-        # 4: detect mint events without corresponding lock events
         alerts = []
+        time_threshold = TIME_THRESHOLDS.get(bridge, 3600)
+        number_of_blocks_to_confirm = BlockConfirmationThresholds.get(bridge, 12)
+        blockchain_transactions = self.fetch_blockchain_transactions()
+        tx_block_numbers = {
+            tx.transaction_hash: tx.block_number
+            for tx in blockchain_transactions
+            if tx.transaction_hash is not None and tx.block_number is not None
+        }
+        tx_timestamps = {
+            tx.transaction_hash: tx.timestamp
+            for tx in blockchain_transactions
+            if tx.transaction_hash is not None and tx.timestamp is not None
+        }
+        latest_block_number = 67 # TODO: call XChainDataGen to get latest block number for the chain
+
         for correlation_id, events in grouped_events.items():
             if events["source"] and not events["destination"]:
-                for event in events["source"]:
-                    mint_event = self.pick_first(events["source"])
-                    alerts.append(self.create_detection_alert(
-                        signature_type=SignatureType.MINT_WITHOUT_LOCK,
-                        severity=AlertSeverity.LOW,
-                        bridge=bridge,
-                        correlation_id=correlation_id,
-                        correlation_type=mint_event.correlation_type,
-                        src_event_id=None,
-                        dst_event_id=mint_event.id,
-                        title=f"{bridge}: mint event without corresponding lock event",
-                        description=(
-                            f"Found mint event {mint_event.event_type} with "
-                            f"correlation_id={correlation_id}, but no matching lock event."
-                        ),
-                        created_at_ts=mint_event.timestamp,
-                        probability="TODO"
-                    ))
+                mint_event = self.pick_first(events["source"])
+
+                if mint_event is None:
+                    continue
+
+                event_timestamp = tx_timestamps.get(mint_event.transaction_hash, mint_event.timestamp)
+                event_block_number = tx_block_numbers.get(mint_event.transaction_hash, mint_event.block_number)
+                event_age = end_ts - event_timestamp if event_timestamp is not None else None
+
+                is_recent_block = (
+                    latest_block_number is not None
+                    and event_block_number is not None
+                    and latest_block_number - event_block_number <= number_of_blocks_to_confirm
+                )
+                event_is_within_time_threshold = event_age is not None and event_age < time_threshold
+
+                severity = AlertSeverity.HIGH
+                description_suffix = "No matching lock event was observed."
+                if is_recent_block or event_is_within_time_threshold:
+                    severity = AlertSeverity.MEDIUM
+                    description_suffix = (
+                        "No matching lock event was observed yet, but the mint is still within the expected processing window."
+                    )
+
+                alerts.append(self.create_detection_alert(
+                    signature_type=SignatureType.MINT_WITHOUT_LOCK,
+                    severity=severity,
+                    bridge=bridge,
+                    correlation_id=correlation_id,
+                    correlation_type=mint_event.correlation_type,
+                    src_event_id=None,
+                    dst_event_id=mint_event.id,
+                    title=f"{bridge}: mint event without corresponding lock event",
+                    description=(
+                        f"Found mint event {mint_event.event_type} with correlation_id={correlation_id}. "
+                        f"{description_suffix}"
+                    ),
+                    created_at_ts=event_timestamp if event_timestamp is not None else mint_event.timestamp,
+                    probability="TODO"
+                ))
         return alerts
 
     def over_mint(self, bridge: str) -> list[DetectionAlert]:
@@ -172,26 +250,26 @@ class Analyser(ABC):
         for correlation_id, events in grouped_events.items():
             if not events["destination"] or not events["source"]:
                 continue
-            for mint_event in events["destination"]:
-                for lock_event in events["source"]:
-                    if mint_event.amount_out is not None and lock_event.amount_out is not None and mint_event.amount_out > lock_event.amount_out:
-                        alerts.append(self.create_detection_alert(
-                            signature_type=SignatureType.OVER_MINT,
-                            severity=AlertSeverity.LOW,
-                            bridge=bridge,
-                            correlation_id=correlation_id,
-                            correlation_type=lock_event.correlation_type,
-                            src_event_id=lock_event.id,
-                            dst_event_id=mint_event.id,
-                            title=f"{bridge}: over-mint detected",
-                            description=(
-                                f"Found mint event {mint_event.event_type} with amount {mint_event.amount_out} "
-                                f"which is greater than the corresponding lock event {lock_event.event_type} "
-                                f"with amount {lock_event.amount_out} for correlation_id={correlation_id}."
-                            ),
-                            created_at_ts=mint_event.timestamp,
-                            probability="TODO"
-                        ))
+            mint_event = events["destination"][0]
+            lock_event = events["source"][0]
+            if mint_event.amount_out is not None and lock_event.amount_out is not None and mint_event.amount_out > lock_event.amount_out:
+                alerts.append(self.create_detection_alert(
+                    signature_type=SignatureType.OVER_MINT,
+                    severity=AlertSeverity.LOW,
+                    bridge=bridge,
+                    correlation_id=correlation_id,
+                    correlation_type=lock_event.correlation_type,
+                    src_event_id=lock_event.id,
+                    dst_event_id=mint_event.id,
+                    title=f"{bridge}: over-mint detected",
+                    description=(
+                        f"Found mint event {mint_event.event_type} with amount {mint_event.amount_out} "
+                        f"which is greater than the corresponding lock event {lock_event.event_type} "
+                        f"with amount {lock_event.amount_out} for correlation_id={correlation_id}."
+                    ),
+                    created_at_ts=mint_event.timestamp,
+                    probability="TODO"
+                ))
         return alerts
 
     def over_release(self, bridge: str) -> list[DetectionAlert]:
@@ -200,26 +278,26 @@ class Analyser(ABC):
         for correlation_id, events in grouped_events.items():
             if not events["destination"] or not events["source"]:
                 continue
-            for release_event in events["destination"]:
-                for burn_event in events["source"]:
-                    if release_event.amount_out is not None and burn_event.amount_out is not None and release_event.amount_out > burn_event.amount_out:
-                        alerts.append(self.create_detection_alert(
-                            signature_type=SignatureType.OVER_RELEASE,
-                            severity=AlertSeverity.LOW,
-                            bridge=bridge,
-                            correlation_id=correlation_id,
-                            correlation_type=burn_event.correlation_type,
-                            src_event_id=burn_event.id,
-                            dst_event_id=release_event.id,
-                            title=f"{bridge}: over-release detected",
-                            description=(
-                                f"Found release event {release_event.event_type} with amount {release_event.amount_out} "
-                                f"which is greater than the corresponding burn event {burn_event.event_type} "
-                                f"with amount {burn_event.amount_out} for correlation_id={correlation_id}."
-                            ),
-                            created_at_ts=release_event.timestamp,
-                            probability="TODO"
-                        ))
+            release_event = events["destination"][0]
+            burn_event = events["source"][0]
+            if release_event.amount_out is not None and burn_event.amount_out is not None and release_event.amount_out > burn_event.amount_out:
+                alerts.append(self.create_detection_alert(
+                    signature_type=SignatureType.OVER_RELEASE,
+                    severity=AlertSeverity.LOW,
+                    bridge=bridge,
+                    correlation_id=correlation_id,
+                    correlation_type=burn_event.correlation_type,
+                    src_event_id=burn_event.id,
+                    dst_event_id=release_event.id,
+                    title=f"{bridge}: over-release detected",
+                    description=(
+                        f"Found release event {release_event.event_type} with amount {release_event.amount_out} "
+                        f"which is greater than the corresponding burn event {burn_event.event_type} "
+                        f"with amount {burn_event.amount_out} for correlation_id={correlation_id}."
+                    ),
+                    created_at_ts=release_event.timestamp,
+                    probability="TODO"
+                ))
         return alerts
 
     def detect_replays(self, bridge: str, source: NormalizedEventType, destination: NormalizedEventType) -> list[DetectionAlert]:
@@ -282,7 +360,7 @@ class Analyser(ABC):
                         correlation_type=source_event.correlation_type,
                         src_event_id=source_event.id,
                         dst_event_id=dst_event.id,
-                        title=f"{bridge}: replay-like repeated execution across multiple destination transactions",
+                        title=f"{bridge}: Same lock/burn event caused multiple destination events on different transactions",
                         description=(
                             f"Found multiple destination events for correlation_id={correlation_id} "
                             f"spread across different transaction hashes "
@@ -342,4 +420,3 @@ class Analyser(ABC):
                     )
 
         return alerts
-
