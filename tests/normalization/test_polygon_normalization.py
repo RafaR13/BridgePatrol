@@ -1,8 +1,8 @@
 from sqlalchemy import text
 
 from db.database import get_session
-from db.repository.normalized_event.normalized_event_model import NormalizedEvent
-from normalization.runners.normalize_polygon import normalize_polygon
+from db.repository.normalized_event.normalized_event_model import get_normalized_event_model
+from normalization.runners.runner import run_normalization_for_bridge
 
 from db.database import Base
 from db.database import engine
@@ -22,9 +22,10 @@ def _count_raw_rows(session) -> int:
 
 
 def _count_normalized_rows(session) -> int:
+    model = get_normalized_event_model("polygon")
     return (
-        session.query(NormalizedEvent)
-        .filter(NormalizedEvent.bridge == "polygon")
+        session.query(model)
+        .filter(model.bridge == "polygon")
         .count()
     )
 
@@ -41,7 +42,7 @@ def test_polygon_normalization():
         before = _count_normalized_rows(session)
 
         # run real normalization against the configured DB
-        normalize_polygon()
+        run_normalization_for_bridge("polygon")
 
         after = _count_normalized_rows(session)
 
@@ -55,11 +56,8 @@ def test_polygon_normalization():
         if before == 0:
             assert inserted_now > 0, "Expected new normalized events on first run"
 
-        sample = (
-            session.query(NormalizedEvent)
-            .filter(NormalizedEvent.bridge == "polygon")
-            .first()
-        )
+        model = get_normalized_event_model("polygon")
+        sample = session.query(model).filter(model.bridge == "polygon").first()
 
         assert sample is not None
         assert sample.raw_table in {

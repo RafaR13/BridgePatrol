@@ -1,11 +1,9 @@
-from sqlalchemy import BigInteger, Column, Enum as SAEnum, Index, Integer, Numeric, String
+from sqlalchemy import BigInteger, Column, Integer, Numeric, String
 
-from normalization.event_types import NormalizedEventType
 from db.database import Base
 
-
 class NormalizedEvent(Base):
-    __tablename__ = "normalized_events"
+    __abstract__ = True
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
 
@@ -134,14 +132,94 @@ class NormalizedEvent(Base):
             f"correlation_id={self.correlation_id})>"
         )
 
+class RoninNormalizedEvent(NormalizedEvent):
+    __tablename__ = "ronin_normalized_event"
 
-Index("ix_normalized_events_bridge", "bridge")
-Index("ix_normalized_events_blockchain", "blockchain")
-Index("ix_normalized_events_tx_hash", "transaction_hash")
-Index("ix_normalized_events_event_type", "event_type")
-Index("ix_normalized_events_corr", "correlation_type", "correlation_id")
-Index("ix_normalized_events_message_id", "message_id")
-Index("ix_normalized_events_guid", "guid")
-Index("ix_normalized_events_nonce", "nonce")
-Index("ix_normalized_events_proof_hash", "proof_hash")
-Index("ix_normalized_events_payload_hash", "payload_hash")
+class PolygonNormalizedEvent(NormalizedEvent):
+    __tablename__ = "polygon_normalized_event"
+
+class OmnibridgeNormalizedEvent(NormalizedEvent):
+    __tablename__ = "omnibridge_normalized_event"
+
+class MayanNormalizedEvent(NormalizedEvent):
+    __tablename__ = "mayan_normalized_event"
+
+class DebridgeNormalizedEvent(NormalizedEvent):
+    __tablename__ = "debridge_normalized_event"
+
+class CctpNormalizedEvent(NormalizedEvent):
+    __tablename__ = "cctp_normalized_event"
+
+class CcipNormalizedEvent(NormalizedEvent):
+    __tablename__ = "ccip_normalized_event"
+
+class AcrossNormalizedEvent(NormalizedEvent):
+    __tablename__ = "across_normalized_event"
+
+
+BRIDGE_NORMALIZED_EVENT_MODELS = {
+    "across": AcrossNormalizedEvent,
+    "ccip": CcipNormalizedEvent,
+    "cctp": CctpNormalizedEvent,
+    "debridge": DebridgeNormalizedEvent,
+    "mayan": MayanNormalizedEvent,
+    "omnibridge": OmnibridgeNormalizedEvent,
+    "polygon": PolygonNormalizedEvent,
+    "ronin": RoninNormalizedEvent,
+}
+
+
+NORMALIZED_EVENT_FIELDS = (
+    "bridge",
+    "blockchain",
+    "raw_table",
+    "raw_pk",
+    "transaction_hash",
+    "event_type",
+    "block_number",
+    "timestamp",
+    "log_index",
+    "correlation_id",
+    "correlation_type",
+    "src_blockchain",
+    "dst_blockchain",
+    "actor_from",
+    "actor_to",
+    "signer",
+    "relayer",
+    "token_in",
+    "token_out",
+    "amount_in",
+    "amount_out",
+    "nonce",
+    "message_id",
+    "message_hash",
+    "payload_hash",
+    "proof_hash",
+    "guid",
+    "contract_address",
+    "status",
+    "extra_data",
+)
+
+
+def get_normalized_event_model(bridge: str) -> type[NormalizedEvent]:
+    try:
+        return BRIDGE_NORMALIZED_EVENT_MODELS[bridge]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported bridge for normalized events: {bridge}") from exc
+
+
+def cast_normalized_event_for_bridge(
+    event: NormalizedEvent,
+    bridge: str,
+) -> NormalizedEvent:
+    model = get_normalized_event_model(bridge)
+    if isinstance(event, model):
+        return event
+
+    payload = {
+        field: getattr(event, field)
+        for field in NORMALIZED_EVENT_FIELDS
+    }
+    return model(**payload)

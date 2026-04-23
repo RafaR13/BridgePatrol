@@ -1,8 +1,8 @@
 from sqlalchemy import text
 
 from db.database import get_session
-from db.repository.normalized_event.normalized_event_model import NormalizedEvent
-from normalization.runners.normalize_across import normalize_across
+from db.repository.normalized_event.normalized_event_model import get_normalized_event_model
+from normalization.runners.runner import run_normalization_for_bridge
 
 from db.database import Base
 from db.database import engine
@@ -16,9 +16,10 @@ def _count_raw_across_rows(session) -> int:
 
 
 def _count_normalized_across_rows(session) -> int:
+    model = get_normalized_event_model("across")
     return (
-        session.query(NormalizedEvent)
-        .filter(NormalizedEvent.bridge == "across")
+        session.query(model)
+        .filter(model.bridge == "across")
         .count()
     )
 
@@ -35,7 +36,7 @@ def test_across_normalization():
         before = _count_normalized_across_rows(session)
 
         # run real normalization against the configured DB
-        normalize_across()
+        run_normalization_for_bridge("across")
 
         after = _count_normalized_across_rows(session)
 
@@ -49,11 +50,8 @@ def test_across_normalization():
         if before == 0:
             assert inserted_now > 0, "Expected new normalized events on first run"
 
-        sample = (
-            session.query(NormalizedEvent)
-            .filter(NormalizedEvent.bridge == "across")
-            .first()
-        )
+        model = get_normalized_event_model("across")
+        sample = session.query(model).filter(model.bridge == "across").first()
 
         assert sample is not None
         assert sample.raw_table in {

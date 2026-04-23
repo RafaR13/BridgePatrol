@@ -4,9 +4,6 @@ from typing import Dict
 
 from normalization.event_types import NormalizedEventType
 
-from signature_detection.signature_scripts.roninAnalyser import RoninAnalyser
-from signature_detection.signature_scripts.polygonAnalyser import PolygonAnalyser
-
 
 class AlertSeverity(str, Enum):
     LOW = "LOW"
@@ -84,10 +81,6 @@ class Bridges(Enum): # supported bridges
     DEBRIDGE = "debridge"
     MAYAN = "mayan"
 
-ANALYSER_BY_BRIDGE = {
-    Bridges.RONIN.value: RoninAnalyser,
-    Bridges.POLYGON.value: PolygonAnalyser,
-}
 
 TIME_THRESHOLDS = {
     # times after which we consider a lock/mint pair to be suspicious if the corresponding mint/lock event has not been observed

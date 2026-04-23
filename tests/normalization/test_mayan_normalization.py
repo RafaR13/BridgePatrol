@@ -1,8 +1,8 @@
 from sqlalchemy import text
 
 from db.database import get_session
-from db.repository.normalized_event.normalized_event_model import NormalizedEvent
-from normalization.runners.normalize_mayan import normalize_mayan
+from db.repository.normalized_event.normalized_event_model import get_normalized_event_model
+from normalization.runners.runner import run_normalization_for_bridge
 
 from db.database import Base
 from db.database import engine
@@ -27,9 +27,10 @@ def _count_raw_rows(session) -> int:
 
 
 def _count_normalized_rows(session) -> int:
+    model = get_normalized_event_model("mayan")
     return (
-        session.query(NormalizedEvent)
-        .filter(NormalizedEvent.bridge == "mayan")
+        session.query(model)
+        .filter(model.bridge == "mayan")
         .count()
     )
 
@@ -48,7 +49,7 @@ def test_mayan_normalization():
         before = _count_normalized_rows(session)
 
         # run real normalization against the configured DB
-        normalize_mayan()
+        run_normalization_for_bridge("mayan")
 
         after = _count_normalized_rows(session)
 
@@ -62,11 +63,8 @@ def test_mayan_normalization():
         if before == 0:
             assert inserted_now > 0, "Expected new normalized events on first run"
 
-        sample = (
-            session.query(NormalizedEvent)
-            .filter(NormalizedEvent.bridge == "mayan")
-            .first()
-        )
+        model = get_normalized_event_model("mayan")
+        sample = session.query(model).filter(model.bridge == "mayan").first()
 
         assert sample is not None
         assert sample.raw_table in {

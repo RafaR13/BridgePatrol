@@ -1,11 +1,11 @@
-from sqlalchemy import Index, func, or_
+from sqlalchemy import func
 
 from db.database import get_session
 
-from .normalized_event_model import NormalizedEvent
+from .normalized_event_model import NormalizedEvent, get_normalized_event_model
 
 class NormalizedEventRepository:
-    
+
     def insert(event: NormalizedEvent):
         session = get_session()
         try:
@@ -30,57 +30,62 @@ class NormalizedEventRepository:
         finally:
             session.close()
 
-    def event_exists(raw_table: str, raw_pk: str):
+    def event_exists(raw_table: str, raw_pk: str, bridge: str):
+        model = get_normalized_event_model(bridge)
         session = get_session()
         try:
             return (
-                session.query(NormalizedEvent)
+                session.query(model)
                 .filter(
-                    NormalizedEvent.raw_table == raw_table,
-                    NormalizedEvent.raw_pk == raw_pk,
+                    model.raw_table == raw_table,
+                    model.raw_pk == raw_pk,
                 )
                 .first()
             )
         finally:
             session.close()
 
-    def event_exists_in_session(session, raw_table: str, raw_pk: str) -> bool:
+    def event_exists_in_session(session, raw_table: str, raw_pk: str, bridge: str) -> bool:
+        model = get_normalized_event_model(bridge)
         return (
-            session.query(NormalizedEvent)
+            session.query(model)
             .filter(
-                NormalizedEvent.raw_table == raw_table,
-                NormalizedEvent.raw_pk == raw_pk,
+                model.raw_table == raw_table,
+                model.raw_pk == raw_pk,
             )
             .first()
             is not None
         )
 
-    def count():
+    def count(bridge: str):
+        model = get_normalized_event_model(bridge)
         session = get_session()
         try:
-            return session.query(func.count(NormalizedEvent.id)).scalar()
+            return session.query(func.count(model.id)).scalar()
         finally:
             session.close()
 
     def get_events_by_bridge(bridge: str) -> list[NormalizedEvent]:
+        model = get_normalized_event_model(bridge)
         session = get_session()
         try:
             return (
-                session.query(NormalizedEvent)
-                .filter(NormalizedEvent.bridge == bridge)
+                session.query(model)
+                .filter(model.bridge == bridge)
                 .all()
             )
         finally:
             session.close()
 
     def get_events_by_event_type(event_type: str, bridge_name: str) -> list[NormalizedEvent]:
+        model = get_normalized_event_model(bridge_name)
         session = get_session()
         try:
             return (
-                session.query(NormalizedEvent)
+                session.query(model)
                 .filter(
-                    NormalizedEvent.event_type == event_type,
-                    NormalizedEvent.bridge == bridge_name,
+                    model.event_type == event_type,
+                    model.bridge == bridge_name,
                 )
                 .all()
             )
@@ -88,11 +93,12 @@ class NormalizedEventRepository:
             session.close()
 
     def get_latest_block_number_by_bridge(bridge_name: str) -> int | None:
+        model = get_normalized_event_model(bridge_name)
         session = get_session()
         try:
             return (
-                session.query(func.max(NormalizedEvent.block_number))
-                .filter(NormalizedEvent.bridge == bridge_name)
+                session.query(func.max(model.block_number))
+                .filter(model.bridge == bridge_name)
                 .scalar()
             )
         finally:

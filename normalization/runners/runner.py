@@ -1,6 +1,7 @@
 from db.database import get_session
 
 from db.repository.normalized_event.normalized_event_repository import NormalizedEventRepository
+from db.repository.normalized_event.normalized_event_model import cast_normalized_event_for_bridge
 from normalization.common.transaction_context import get_tx_context
 from .jobs import NormalizationJob, get_jobs_for_bridge
 
@@ -14,12 +15,17 @@ def normalize_table(session, bridge: str, job: NormalizationJob):
     for row in rows:
         raw_pk = job.raw_pk_fn(row)
 
-        if NormalizedEventRepository.event_exists_in_session(session, job.raw_table, raw_pk):
+        if NormalizedEventRepository.event_exists_in_session(
+            session,
+            job.raw_table,
+            raw_pk,
+            bridge,
+        ):
             skipped += 1
             continue
 
         tx_ctx = get_tx_context(session, row.transaction_hash, bridge)
-        event = job.mapper_fn(row, tx_ctx)
+        event = cast_normalized_event_for_bridge(job.mapper_fn(row, tx_ctx), bridge)
         session.add(event)
         inserted += 1
 

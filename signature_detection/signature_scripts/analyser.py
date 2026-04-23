@@ -4,10 +4,6 @@ from abc import ABC, abstractmethod
 from typing import List
 
 from db.repository.detection_alert.detection_alert_model import DetectionAlert
-from normalization.event_types import NormalizedEventType
-from db.repository.normalized_event.normalized_event_model import NormalizedEvent
-from db.repository.normalized_event.normalized_event_repository import NormalizedEventRepository
-from db.repository.detection_alert.detection_alert_model import DetectionAlert
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
 from db.repository.normalized_event.normalized_event_repository import NormalizedEventRepository
 from normalization.event_types import NormalizedEventType

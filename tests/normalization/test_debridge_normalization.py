@@ -1,8 +1,8 @@
 from sqlalchemy import text
 
 from db.database import get_session
-from db.repository.normalized_event.normalized_event_model import NormalizedEvent
-from normalization.runners.normalize_debridge import normalize_debridge
+from db.repository.normalized_event.normalized_event_model import get_normalized_event_model
+from normalization.runners.runner import run_normalization_for_bridge
 
 from db.database import Base
 from db.database import engine
@@ -17,9 +17,10 @@ def _count_raw_rows(session) -> int:
 
 
 def _count_normalized_rows(session) -> int:
+    model = get_normalized_event_model("debridge")
     return (
-        session.query(NormalizedEvent)
-        .filter(NormalizedEvent.bridge == "debridge")
+        session.query(model)
+        .filter(model.bridge == "debridge")
         .count()
     )
 
@@ -36,7 +37,7 @@ def test_debridge_normalization():
         before = _count_normalized_rows(session)
 
         # run real normalization against the configured DB
-        normalize_debridge()
+        run_normalization_for_bridge("debridge")
 
         after = _count_normalized_rows(session)
 
@@ -50,11 +51,8 @@ def test_debridge_normalization():
         if before == 0:
             assert inserted_now > 0, "Expected new normalized events on first run"
 
-        sample = (
-            session.query(NormalizedEvent)
-            .filter(NormalizedEvent.bridge == "debridge")
-            .first()
-        )
+        model = get_normalized_event_model("debridge")
+        sample = session.query(model).filter(model.bridge == "debridge").first()
 
         assert sample is not None
         assert sample.raw_table in {

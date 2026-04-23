@@ -1,8 +1,15 @@
 from db.database import engine, Base
 from db.repository.detection_alert.detection_alert_repository import DetectionAlertRepository
-from signature_detection.constants import Bridges, ANALYSER_BY_BRIDGE
+from signature_detection.constants import Bridges
 from db.repository.detection_alert.detection_alert_model import DetectionAlert
 
+from signature_detection.signature_scripts.roninAnalyser import RoninAnalyser
+from signature_detection.signature_scripts.polygonAnalyser import PolygonAnalyser
+
+ANALYSER_BY_BRIDGE = {
+    Bridges.RONIN.value: RoninAnalyser,
+    Bridges.POLYGON.value: PolygonAnalyser,
+}
 
 def run_for_bridge(bridge: str, start_ts: int, end_ts: int, persist: bool = False) -> list[DetectionAlert]:
     # ensure tables exist
