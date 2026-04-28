@@ -3,13 +3,14 @@ from db.repository.normalized_event.normalized_event_model import NormalizedEven
 from normalization.common.utils import to_json, to_str
 
 
-def map_filled_relay(row, tx_ctx):
+def map_filled_relay(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="across",
         blockchain=row.blockchain,
         raw_table="across_filled_relay",
         raw_pk=str(row.deposit_id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.FILL_EXECUTED,
@@ -40,15 +41,14 @@ def map_filled_relay(row, tx_ctx):
         ),
     )
 
-def map_relayer_refund(row, tx_ctx):
-    raw_pk = f"{row.transaction_hash}:{row.root_bundle_id}:{row.refund_address}"
-
+def map_relayer_refund(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="across",
         blockchain=row.blockchain,
         raw_table="across_relayer_refund",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.RELAYER_REFUND,
@@ -64,13 +64,14 @@ def map_relayer_refund(row, tx_ctx):
         extra_data=None,
     )
 
-def map_funds_deposited(row, tx_ctx):
+def map_funds_deposited(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="across",
         blockchain=row.blockchain,
         raw_table="across_funds_deposited",
         raw_pk=str(row.deposit_id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.DEPOSIT_INTENT,

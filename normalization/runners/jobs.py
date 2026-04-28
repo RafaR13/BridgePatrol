@@ -124,7 +124,7 @@ BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
         NormalizationJob(
             AcrossRelayerRefund,
             "across_relayer_refund",
-            lambda row: f"{row.transaction_hash}:{row.root_bundle_id}:{row.refund_address}",
+            lambda row: str(row.id),
             map_relayer_refund,
         ),
     ),

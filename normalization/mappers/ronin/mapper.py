@@ -3,13 +3,14 @@ from db.repository.normalized_event.normalized_event_model import NormalizedEven
 from normalization.common.utils import to_json, to_str
 
 
-def map_deposit_requested(row, tx_ctx):
+def map_deposit_requested(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="ronin",
         blockchain=row.blockchain,
         raw_table="ronin_deposit_requested",
         raw_pk=str(row.deposit_id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.DEPOSIT_REQUESTED,
@@ -33,11 +34,12 @@ def map_deposit_requested(row, tx_ctx):
     )
 
 
-def map_token_deposited(row, tx_ctx):
+def map_token_deposited(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(bridge="ronin",blockchain=row.blockchain,
         raw_table="ronin_token_deposited",
         raw_pk=str(row.deposit_id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.TOKEN_DEPOSITED,
@@ -61,13 +63,14 @@ def map_token_deposited(row, tx_ctx):
     )
 
 
-def map_withdrawal_requested(row, tx_ctx):
+def map_withdrawal_requested(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="ronin",
         blockchain=row.blockchain,
         raw_table="ronin_withdrawal_requested",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.WITHDRAWAL_REQUESTED,
@@ -91,13 +94,14 @@ def map_withdrawal_requested(row, tx_ctx):
     )
 
 
-def map_token_withdrew(row, tx_ctx):
+def map_token_withdrew(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="ronin",
         blockchain=row.blockchain,
         raw_table="ronin_token_withdrew",
         raw_pk=str(row.withdrawal_id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.TOKEN_WITHDREW,

@@ -3,13 +3,14 @@ from db.repository.normalized_event.normalized_event_model import NormalizedEven
 from normalization.common.utils import to_json
 
 
-def map_ccip_send_requested(row, tx_ctx):
+def map_ccip_send_requested(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="ccip",
         blockchain=row.blockchain,
         raw_table="ccip_send_requested",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.MESSAGE_SENT,
@@ -38,13 +39,14 @@ def map_ccip_send_requested(row, tx_ctx):
     )
 
 
-def map_ccip_execution_state_changed(row, tx_ctx):
+def map_ccip_execution_state_changed(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="ccip",
         blockchain=row.blockchain,
         raw_table="ccip_execution_state_changed",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.MESSAGE_EXECUTION_STATE_CHANGED,

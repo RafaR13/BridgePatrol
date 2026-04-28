@@ -3,13 +3,14 @@ from db.repository.normalized_event.normalized_event_model import NormalizedEven
 from normalization.common.utils import to_json
 
 
-def map_locked_token(row, tx_ctx):
+def map_locked_token(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="polygon",
         blockchain=row.blockchain,
         raw_table="polygon_locked_token",
         raw_pk=row.id,
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.LOCKED_TOKEN,
@@ -32,13 +33,14 @@ def map_locked_token(row, tx_ctx):
     )
 
 
-def map_state_synced(row, tx_ctx):
+def map_state_synced(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="polygon",
         blockchain=row.blockchain,
         raw_table="polygon_state_synced",
         raw_pk=str(row.state_id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.STATE_SYNCED,
@@ -55,13 +57,14 @@ def map_state_synced(row, tx_ctx):
     )
 
 
-def map_state_committed(row, tx_ctx):
+def map_state_committed(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="polygon",
         blockchain=row.blockchain,
         raw_table="polygon_state_committed",
         raw_pk=str(row.state_id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.STATE_COMMITTED,
@@ -79,13 +82,14 @@ def map_state_committed(row, tx_ctx):
     )
 
 
-def map_token_deposited(row, tx_ctx):
+def map_token_deposited(row, tx_ctx, cctx_id=None):
         return NormalizedEvent(
         bridge="polygon",
         blockchain=row.blockchain,
         raw_table="polygon_token_deposited",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.TOKEN_DEPOSITED,
@@ -107,13 +111,14 @@ def map_token_deposited(row, tx_ctx):
     )
 
 
-def map_pol_withdraw(row, tx_ctx):
+def map_pol_withdraw(row, tx_ctx, cctx_id=None):
         return NormalizedEvent(
         bridge="polygon",
         blockchain=row.blockchain,
         raw_table="polygon_pol_withdraw",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.POL_WITHDRAW,
@@ -136,13 +141,14 @@ def map_pol_withdraw(row, tx_ctx):
     )
 
 
-def map_bridge_withdraw(row, tx_ctx):
+def map_bridge_withdraw(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="polygon",
         blockchain=row.blockchain,
         raw_table="polygon_bridge_withdraw",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.BRIDGE_WITHDRAWAL,
@@ -159,13 +165,14 @@ def map_bridge_withdraw(row, tx_ctx):
     )
 
 
-def map_exited_token(row, tx_ctx):
+def map_exited_token(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="polygon",
         blockchain=row.blockchain,
         raw_table="polygon_exited_token",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.EXITED_TOKEN,

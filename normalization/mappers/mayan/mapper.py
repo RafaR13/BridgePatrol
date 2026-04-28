@@ -19,7 +19,7 @@ def _tx_status(tx_ctx):
     return str(tx_ctx.status) if tx_ctx else None
 
 
-def map_mayan_swap_and_forwarded(row, tx_ctx):
+def map_mayan_swap_and_forwarded(row, tx_ctx, cctx_id=None):
     raw_pk = str(row.id) if getattr(row, "id", None) is not None else row.transaction_hash
     correlation_id = row.random if row.random else row.transaction_hash
 
@@ -29,6 +29,7 @@ def map_mayan_swap_and_forwarded(row, tx_ctx):
         raw_table="mayan_swap_and_forwarded",
         raw_pk=raw_pk,
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.SWAP_AND_FORWARDED,
@@ -62,7 +63,7 @@ def map_mayan_swap_and_forwarded(row, tx_ctx):
     )
 
 
-def map_mayan_forwarded(row, tx_ctx):
+def map_mayan_forwarded(row, tx_ctx, cctx_id=None):
     raw_pk = str(row.id) if getattr(row, "id", None) is not None else row.transaction_hash
     correlation_id = row.random if row.random else row.transaction_hash
 
@@ -72,6 +73,7 @@ def map_mayan_forwarded(row, tx_ctx):
         raw_table="mayan_forwarded",
         raw_pk=raw_pk,
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.FORWARDED,
@@ -102,13 +104,14 @@ def map_mayan_forwarded(row, tx_ctx):
     )
 
 
-def map_mayan_order_created(row, tx_ctx):
+def map_mayan_order_created(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="mayan",
         blockchain=row.blockchain,
         raw_table="mayan_order_created",
         raw_pk=row.key,
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.ORDER_CREATED,
@@ -127,13 +130,14 @@ def map_mayan_order_created(row, tx_ctx):
     )
 
 
-def map_mayan_order_fulfilled(row, tx_ctx):
+def map_mayan_order_fulfilled(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="mayan",
         blockchain=row.blockchain,
         raw_table="mayan_order_fulfilled",
         raw_pk=row.key,
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.ORDER_FULFILLED,
@@ -160,13 +164,14 @@ def map_mayan_order_fulfilled(row, tx_ctx):
     )
 
 
-def map_mayan_order_unlocked(row, tx_ctx):
+def map_mayan_order_unlocked(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="mayan",
         blockchain=row.blockchain,
         raw_table="mayan_order_unlocked",
         raw_pk=row.key,
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.UNLOCK_CLAIMED,
@@ -185,13 +190,14 @@ def map_mayan_order_unlocked(row, tx_ctx):
     )
 
 
-def map_mayan_init_order(row, tx_ctx):
+def map_mayan_init_order(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="mayan",
         blockchain="solana",
         raw_table="mayan_init_order",
         raw_pk=row.order_hash,
         transaction_hash=row.signature,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.INIT_ORDER,
@@ -233,13 +239,14 @@ def map_mayan_init_order(row, tx_ctx):
     )
 
 
-def map_mayan_register_order(row, tx_ctx):
+def map_mayan_register_order(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="mayan",
         blockchain="solana",
         raw_table="mayan_register_order",
         raw_pk=row.order_hash,
         transaction_hash=row.signature,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.REGISTER_ORDER,
@@ -273,13 +280,14 @@ def map_mayan_register_order(row, tx_ctx):
     )
 
 
-def map_mayan_auction_bid(row, tx_ctx):
+def map_mayan_auction_bid(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="mayan",
         blockchain="solana",
         raw_table="mayan_auction_bid",
         raw_pk=f"{row.order_hash}:{row.signature}",
         transaction_hash=row.signature,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.AUCTION_BID,
@@ -316,7 +324,7 @@ def map_mayan_auction_bid(row, tx_ctx):
     )
 
 
-def map_mayan_set_auction_winner(row, tx_ctx):
+def map_mayan_set_auction_winner(row, tx_ctx, cctx_id=None):
     raw_pk = str(row.id) if getattr(row, "id", None) is not None else row.signature
 
     return NormalizedEvent(
@@ -325,6 +333,7 @@ def map_mayan_set_auction_winner(row, tx_ctx):
         raw_table="mayan_set_auction_winner",
         raw_pk=raw_pk,
         transaction_hash=row.signature,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.AUCTION_WINNER_SET,
@@ -349,13 +358,14 @@ def map_mayan_set_auction_winner(row, tx_ctx):
     )
 
 
-def map_mayan_auction_close(row, tx_ctx):
+def map_mayan_auction_close(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="mayan",
         blockchain="solana",
         raw_table="mayan_auction_close",
         raw_pk=row.auction,
         transaction_hash=row.signature,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.AUCTION_CLOSED,
@@ -379,7 +389,7 @@ def map_mayan_auction_close(row, tx_ctx):
     )
 
 
-def map_mayan_fulfill_order(row, tx_ctx):
+def map_mayan_fulfill_order(row, tx_ctx, cctx_id=None):
     raw_pk = str(row.id) if getattr(row, "id", None) is not None else row.signature
 
     return NormalizedEvent(
@@ -388,6 +398,7 @@ def map_mayan_fulfill_order(row, tx_ctx):
         raw_table="mayan_fulfill_order",
         raw_pk=raw_pk,
         transaction_hash=row.signature,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.INTENT_FULFILLED,
@@ -414,7 +425,7 @@ def map_mayan_fulfill_order(row, tx_ctx):
     )
 
 
-def map_mayan_unlock(row, tx_ctx):
+def map_mayan_unlock(row, tx_ctx, cctx_id=None):
     raw_pk = str(row.id) if getattr(row, "id", None) is not None else row.signature
 
     return NormalizedEvent(
@@ -423,6 +434,7 @@ def map_mayan_unlock(row, tx_ctx):
         raw_table="mayan_unlock",
         raw_pk=raw_pk,
         transaction_hash=row.signature,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.UNLOCK_CLAIMED,
@@ -449,7 +461,7 @@ def map_mayan_unlock(row, tx_ctx):
     )
 
 
-def map_mayan_settle(row, tx_ctx):
+def map_mayan_settle(row, tx_ctx, cctx_id=None):
     raw_pk = str(row.id) if getattr(row, "id", None) is not None else row.signature
 
     return NormalizedEvent(
@@ -458,6 +470,7 @@ def map_mayan_settle(row, tx_ctx):
         raw_table="mayan_settle",
         raw_pk=raw_pk,
         transaction_hash=row.signature,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.SETTLED,

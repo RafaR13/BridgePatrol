@@ -2,13 +2,14 @@ from normalization.event_types import NormalizedEventType
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
 
 
-def map_deposit_for_burn(row, tx_ctx):
+def map_deposit_for_burn(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="cctp",
         blockchain=row.blockchain,
         raw_table="cctp_deposit_for_burn",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.DEPOSIT_FOR_BURN,
@@ -27,13 +28,14 @@ def map_deposit_for_burn(row, tx_ctx):
     )
 
 
-def map_message_received(row, tx_ctx):
+def map_message_received(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="cctp",
         blockchain=row.blockchain,
         raw_table="cctp_message_received",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.MESSAGE_RECEIVED,

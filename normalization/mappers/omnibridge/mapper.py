@@ -19,13 +19,14 @@ def _tx_status(tx_ctx):
     return str(tx_ctx.status) if tx_ctx else None
 
 
-def map_tokens_bridging_initiated(row, tx_ctx):
+def map_tokens_bridging_initiated(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="omnibridge",
         blockchain=row.blockchain,
         raw_table="omnibridge_tokens_bridging_initiated",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.BRIDGING_INITIATED,
@@ -44,13 +45,14 @@ def map_tokens_bridging_initiated(row, tx_ctx):
     )
 
 
-def map_tokens_bridged(row, tx_ctx):
+def map_tokens_bridged(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="omnibridge",
         blockchain=row.blockchain,
         raw_table="omnibridge_tokens_bridged",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.TOKENS_BRIDGED,
@@ -69,13 +71,14 @@ def map_tokens_bridged(row, tx_ctx):
     )
 
 
-def map_relayed_message(row, tx_ctx):
+def map_relayed_message(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="omnibridge",
         blockchain=row.blockchain,
         raw_table="omnibridge_relayed_message",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.RELAYED_MESSAGE,
@@ -98,13 +101,14 @@ def map_relayed_message(row, tx_ctx):
     )
 
 
-def map_signed_for_user_request(row, tx_ctx):
+def map_signed_for_user_request(row, tx_ctx, cctx_id=None):
         return NormalizedEvent(
         bridge="omnibridge",
         blockchain=row.blockchain,
         raw_table="omnibridge_signed_for_user_request",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.SIGNED_FOR_USER_REQUEST,
@@ -128,13 +132,14 @@ def map_signed_for_user_request(row, tx_ctx):
     )
 
 
-def map_signed_for_affirmation(row, tx_ctx):
+def map_signed_for_affirmation(row, tx_ctx, cctx_id=None):
         return NormalizedEvent(
         bridge="omnibridge",
         blockchain=row.blockchain,
         raw_table="omnibridge_signed_for_affirmation",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.SIGNED_FOR_AFFIRMATION,
@@ -159,13 +164,14 @@ def map_signed_for_affirmation(row, tx_ctx):
     )
 
 
-def map_user_request_for_signature(row, tx_ctx):
+def map_user_request_for_signature(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="omnibridge",
         blockchain=row.blockchain,
         raw_table="omnibridge_user_request_for_signature",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.USER_REQUEST_FOR_SIGNATURE,
@@ -189,13 +195,14 @@ def map_user_request_for_signature(row, tx_ctx):
     )
 
 
-def map_affirmation_completed(row, tx_ctx):
+def map_affirmation_completed(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="omnibridge",
         blockchain=row.blockchain,
         raw_table="omnibridge_affirmation_completed",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.AFFIRMATION_COMPLETED,
@@ -218,13 +225,14 @@ def map_affirmation_completed(row, tx_ctx):
     )
 
 
-def map_user_request_for_affirmation(row, tx_ctx):
+def map_user_request_for_affirmation(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="omnibridge",
         blockchain=row.blockchain,
         raw_table="omnibridge_user_request_for_affirmation",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=_tx_block_number(tx_ctx),
         timestamp=_tx_timestamp(tx_ctx),
         event_type=NormalizedEventType.USER_REQUEST_FOR_AFFIRMATION,
@@ -255,6 +263,7 @@ def map_user_request_for_affirmation(row, tx_ctx):
         raw_table="omnibridge_operator_transactions",
         raw_pk=raw_pk,
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=None,
         timestamp=row.timestamp if getattr(row, "timestamp", None) is not None else None,
         event_type=NormalizedEventType.OPERATOR_TX,

@@ -15,6 +15,7 @@ class NormalizedEvent(Base):
 
     # tx / block context
     transaction_hash = Column(String(88), nullable=False)
+    cctx_id = Column(String(128), nullable=True)
     block_number = Column(BigInteger, nullable=True)
     timestamp = Column(BigInteger, nullable=True)
     log_index = Column(Integer, nullable=True)
@@ -64,6 +65,7 @@ class NormalizedEvent(Base):
         raw_pk,
         transaction_hash,
         event_type,
+        cctx_id=None,
         block_number=None,
         timestamp=None,
         log_index=None,
@@ -93,6 +95,7 @@ class NormalizedEvent(Base):
         self.raw_table = raw_table
         self.raw_pk = raw_pk
         self.transaction_hash = transaction_hash
+        self.cctx_id = cctx_id
         self.event_type = event_type
         self.block_number = block_number
         self.timestamp = timestamp
@@ -171,6 +174,7 @@ NORMALIZED_EVENT_FIELDS = (
     "raw_table",
     "raw_pk",
     "transaction_hash",
+    "cctx_id",
     "event_type",
     "block_number",
     "timestamp",

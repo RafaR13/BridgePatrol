@@ -3,13 +3,14 @@ from db.repository.normalized_event.normalized_event_model import NormalizedEven
 from normalization.common.utils import to_json
 
 
-def map_debridge_created_order(row, tx_ctx):
+def map_debridge_created_order(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="debridge",
         blockchain=row.blockchain,
         raw_table="debridge_created_order",
         raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.ORDER_CREATED,
@@ -44,13 +45,14 @@ def map_debridge_created_order(row, tx_ctx):
     )
 
 
-def map_debridge_fulfilled_order(row, tx_ctx):
+def map_debridge_fulfilled_order(row, tx_ctx, cctx_id=None):
         return NormalizedEvent(
         bridge="debridge",
         blockchain=row.blockchain,
         raw_table="debridge_fulfilled_order",
         raw_pk=str(row.order_id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.ORDER_FULFILLED,
@@ -82,13 +84,14 @@ def map_debridge_fulfilled_order(row, tx_ctx):
     )
 
 
-def map_debridge_claimed_unlock(row, tx_ctx):
+def map_debridge_claimed_unlock(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="debridge",
         blockchain=row.blockchain,
         raw_table="debridge_claimed_unlock",
         raw_pk=str(row.order_id),
         transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.CLAIMED_UNLOCK,
