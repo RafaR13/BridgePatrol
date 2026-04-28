@@ -24,7 +24,6 @@ class NormalizedEvent(Base):
 
     # correlation
     correlation_id = Column(String(128), nullable=True)
-    correlation_type = Column(String(32), nullable=True)
 
     # cross-chain context
     src_blockchain = Column(String(16), nullable=True)
@@ -69,7 +68,6 @@ class NormalizedEvent(Base):
         timestamp=None,
         log_index=None,
         correlation_id=None,
-        correlation_type=None,
         src_blockchain=None,
         dst_blockchain=None,
         actor_from=None,
@@ -100,7 +98,6 @@ class NormalizedEvent(Base):
         self.timestamp = timestamp
         self.log_index = log_index
         self.correlation_id = correlation_id
-        self.correlation_type = correlation_type
         self.src_blockchain = src_blockchain
         self.dst_blockchain = dst_blockchain
         self.actor_from = actor_from
@@ -128,7 +125,6 @@ class NormalizedEvent(Base):
             f"blockchain={self.blockchain}, "
             f"transaction_hash={self.transaction_hash}, "
             f"event_type={self.event_type}, "
-            f"correlation_type={self.correlation_type}, "
             f"correlation_id={self.correlation_id})>"
         )
 
@@ -180,7 +176,6 @@ NORMALIZED_EVENT_FIELDS = (
     "timestamp",
     "log_index",
     "correlation_id",
-    "correlation_type",
     "src_blockchain",
     "dst_blockchain",
     "actor_from",

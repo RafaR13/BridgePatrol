@@ -4,19 +4,16 @@ from normalization.common.utils import to_json
 
 
 def map_debridge_created_order(row, tx_ctx):
-    raw_pk = str(row.id) if getattr(row, "id", None) is not None else row.order_id
-
     return NormalizedEvent(
         bridge="debridge",
         blockchain=row.blockchain,
         raw_table="debridge_created_order",
-        raw_pk=raw_pk,
+        raw_pk=str(row.id),
         transaction_hash=row.transaction_hash,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.ORDER_CREATED,
-        correlation_id=row.order_id if row.order_id else str(row.maker_order_nonce),
-        correlation_type="order_id" if row.order_id else "maker_order_nonce",
+        correlation_id=row.order_id,
         src_blockchain=row.src_blockchain,
         dst_blockchain=row.dst_blockchain,
         actor_from=row.maker_src,
@@ -29,9 +26,6 @@ def map_debridge_created_order(row, tx_ctx):
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=to_json(
             {
-                "maker_order_nonce": str(row.maker_order_nonce),
-                "maker_src": row.maker_src,
-                "receiver_dst": row.receiver_dst,
                 "give_patch_authority_src": row.give_patch_authority_src,
                 "order_authority_address_dst": row.order_authority_address_dst,
                 "allowed_taker_dst": row.allowed_taker_dst,
@@ -44,28 +38,26 @@ def map_debridge_created_order(row, tx_ctx):
                 "metadata": row._metadata,
                 "original_token": row.original_token,
                 "original_amount": str(row.original_amount) if row.original_amount is not None else None,
+                "nonce": str(row.maker_order_nonce),
             }
         ),
     )
 
 
 def map_debridge_fulfilled_order(row, tx_ctx):
-    raw_pk = row.order_id if getattr(row, "order_id", None) is not None else row.transaction_hash
-
-    return NormalizedEvent(
+        return NormalizedEvent(
         bridge="debridge",
         blockchain=row.blockchain,
         raw_table="debridge_fulfilled_order",
-        raw_pk=raw_pk,
+        raw_pk=str(row.order_id),
         transaction_hash=row.transaction_hash,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.ORDER_FULFILLED,
-        correlation_id=row.order_id if row.order_id else str(row.maker_order_nonce),
-        correlation_type="order_id" if row.order_id else "maker_order_nonce",
+        correlation_id=row.order_id,
         src_blockchain=row.src_blockchain,
         dst_blockchain=row.dst_blockchain,
-        actor_from=row.sender if row.sender else row.maker_src,
+        actor_from=row.sender,
         actor_to=row.receiver_dst,
         token_in=row.give_token_address,
         token_out=row.take_token_address,
@@ -75,10 +67,6 @@ def map_debridge_fulfilled_order(row, tx_ctx):
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=to_json(
             {
-                "maker_order_nonce": str(row.maker_order_nonce),
-                "maker_src": row.maker_src,
-                "receiver_dst": row.receiver_dst,
-                "sender": row.sender,
                 "taker": row.taker,
                 "unlock_authority": row.unlock_authority,
                 "give_patch_authority_src": row.give_patch_authority_src,
@@ -88,25 +76,23 @@ def map_debridge_fulfilled_order(row, tx_ctx):
                 "external_call": row.external_call,
                 "middle_dst_token": row.middle_dst_token,
                 "middle_dst_amount": str(row.middle_dst_amount) if row.middle_dst_amount is not None else None,
+                "nonce": str(row.maker_order_nonce),
             }
         ),
     )
 
 
 def map_debridge_claimed_unlock(row, tx_ctx):
-    raw_pk = row.order_id if getattr(row, "order_id", None) is not None else row.transaction_hash
-
     return NormalizedEvent(
         bridge="debridge",
         blockchain=row.blockchain,
         raw_table="debridge_claimed_unlock",
-        raw_pk=raw_pk,
+        raw_pk=str(row.order_id),
         transaction_hash=row.transaction_hash,
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.CLAIMED_UNLOCK,
         correlation_id=row.order_id,
-        correlation_type="order_id",
         src_blockchain=None,
         dst_blockchain=row.blockchain,
         actor_from=None,
@@ -119,8 +105,6 @@ def map_debridge_claimed_unlock(row, tx_ctx):
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=to_json(
             {
-                "order_id": row.order_id,
-                "beneficiary": row.beneficiary,
                 "fee": str(row.fee) if row.fee is not None else None,
             }
         ),
