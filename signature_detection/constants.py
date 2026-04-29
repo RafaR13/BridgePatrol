@@ -26,51 +26,163 @@ class SignatureType(str, Enum):
     AMOUNT_MISMATCH = "AMOUNT_MISMATCH"
     PROOF_REPLAY = "PROOF_REPLAY"
 
-@dataclass(frozen=True)
-class BridgeFlow:
-    lock: NormalizedEventType | None = None
-    mint: NormalizedEventType | None = None
-    burn: NormalizedEventType  | None = None
-    release: NormalizedEventType  | None = None
-    source: NormalizedEventType  | None = None
-    destination: NormalizedEventType  | None = None
 
-BRIDGE_EVENT_MAP: Dict[str, BridgeFlow] = {
-    "ronin": BridgeFlow(
-        lock=NormalizedEventType.DEPOSIT_REQUESTED,
-        mint=NormalizedEventType.TOKEN_DEPOSITED,
-        burn=NormalizedEventType.WITHDRAWAL_REQUESTED,
-        release=NormalizedEventType.TOKEN_WITHDREW
+@dataclass(frozen=True)
+class RelatedEvent:
+    event_type: NormalizedEventType
+    side: str
+    anchor_side: str
+    anchor_event_type: NormalizedEventType
+    anchor_field: str = "transaction_hash"
+    event_field: str = "transaction_hash"
+
+
+@dataclass(frozen=True)
+class EventPairFlow:
+    name: str
+    source: NormalizedEventType
+    destination: NormalizedEventType
+    source_key: tuple[str, ...] = ("correlation_id",)
+    destination_key: tuple[str, ...] = ("correlation_id",)
+    related_events: tuple[RelatedEvent, ...] = ()
+
+
+@dataclass(frozen=True)
+class BridgeEventConfig:
+    deposits: tuple[EventPairFlow, ...] = ()
+    withdrawals: tuple[EventPairFlow, ...] = ()
+    todo: str | None = None
+
+
+BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
+    "ronin": BridgeEventConfig(
+        deposits=(
+            EventPairFlow(
+                name="deposit",
+                source=NormalizedEventType.DEPOSIT_REQUESTED,
+                destination=NormalizedEventType.TOKEN_DEPOSITED,
+                source_key=("correlation_id",),  # deposit_id
+                destination_key=("correlation_id",),  # deposit_id
+            ),
+        ),
+        withdrawals=(
+            EventPairFlow(
+                name="withdrawal",
+                source=NormalizedEventType.WITHDRAWAL_REQUESTED,
+                destination=NormalizedEventType.TOKEN_WITHDREW,
+                source_key=("correlation_id",),  # withdrawal_id
+                destination_key=("correlation_id",),  # withdrawal_id
+            ),
+        ),
     ),
-    "polygon": BridgeFlow(
-        lock=NormalizedEventType.DEPOSIT_REQUESTED,
-        mint=NormalizedEventType.TOKEN_DEPOSITED,
-        burn=NormalizedEventType.WITHDRAWAL_REQUESTED,
-        release=NormalizedEventType.TOKEN_WITHDREW
+    "polygon": BridgeEventConfig(
+        deposits=(
+            EventPairFlow(
+                name="pos_deposit",
+                source=NormalizedEventType.STATE_SYNCED,
+                destination=NormalizedEventType.STATE_COMMITTED,
+                source_key=("correlation_id",),  # state_id
+                destination_key=("correlation_id",),  # state_id
+                related_events=(
+                    RelatedEvent(
+                        event_type=NormalizedEventType.LOCKED_TOKEN,
+                        side="source",
+                        anchor_side="source",
+                        anchor_event_type=NormalizedEventType.STATE_SYNCED,
+                    ),
+                ),
+            ),
+            EventPairFlow(
+                name="plasma_deposit",
+                source=NormalizedEventType.STATE_SYNCED,
+                destination=NormalizedEventType.STATE_COMMITTED,
+                source_key=("correlation_id",),  # state_id
+                destination_key=("correlation_id",),  # state_id
+                related_events=(
+                    # TODO: add NEW_DEPOSIT_BLOCK normalization with deposit_block_id in extra_data.
+                    RelatedEvent(
+                        event_type=NormalizedEventType.NEW_DEPOSIT_BLOCK,
+                        side="source",
+                        anchor_side="source",
+                        anchor_event_type=NormalizedEventType.STATE_SYNCED,
+                    ),
+                    RelatedEvent(
+                        event_type=NormalizedEventType.TOKEN_DEPOSITED,
+                        side="destination",
+                        anchor_side="destination",
+                        anchor_event_type=NormalizedEventType.STATE_COMMITTED,
+                    ),
+                    RelatedEvent(
+                        event_type=NormalizedEventType.TOKEN_DEPOSITED,
+                        side="destination",
+                        anchor_side="destination",
+                        anchor_event_type=NormalizedEventType.NEW_DEPOSIT_BLOCK,
+                        anchor_field="extra_data.deposit_block_id",
+                        event_field="extra_data.deposit_block_id",
+                    ),
+                ),
+            ),
+        ),
+        withdrawals=(
+            EventPairFlow(
+                name="plasma_withdrawal",
+                source=NormalizedEventType.POL_WITHDRAW,
+                destination=NormalizedEventType.BRIDGE_WITHDRAWAL,
+                source_key=("token_in", "actor_from", "amount_out"),
+                destination_key=("token_in", "actor_from", "amount_out"),
+            ),
+        ),
     ),
-    "omnibridge": BridgeFlow(
-        lock=NormalizedEventType.BRIDGING_INITIATED,
-        mint=NormalizedEventType.TOKENS_BRIDGED,
-        burn=NormalizedEventType.USER_REQUEST_FOR_AFFIRMATION,
-        release=NormalizedEventType.AFFIRMATION_COMPLETED,
+    "omnibridge": BridgeEventConfig(
+        todo="TODO: define Omnibridge event pair grouping.",
     ),
-    
-    "ccip": BridgeFlow(
-        source=NormalizedEventType.MESSAGE_SENT,
-        destination=NormalizedEventType.MESSAGE_EXECUTION_STATE_CHANGED,
+    "ccip": BridgeEventConfig(
+        deposits=(
+            EventPairFlow(
+                name="message_execution",
+                source=NormalizedEventType.MESSAGE_SENT,
+                destination=NormalizedEventType.MESSAGE_EXECUTION_STATE_CHANGED,
+                source_key=("extra_data.sequence_number",),
+                destination_key=("extra_data.sequence_number",),
+            ),
+        ),
     ),
-    "cctp": BridgeFlow(
-        burn=NormalizedEventType.DEPOSIT_FOR_BURN,
-        mint=NormalizedEventType.MESSAGE_RECEIVED
+    "cctp": BridgeEventConfig(
+        deposits=(
+            EventPairFlow(
+                name="burn_message",
+                source=NormalizedEventType.DEPOSIT_FOR_BURN,
+                destination=NormalizedEventType.MESSAGE_RECEIVED,
+                source_key=("correlation_id",),  # nonce
+                destination_key=("correlation_id",),  # nonce
+            ),
+        ),
     ),
-    "across": BridgeFlow(
-        source=NormalizedEventType.DEPOSIT_INTENT,
-        destination=NormalizedEventType.FILL_EXECUTED,
-    )
-    # TODO: add mayan and debridge, but they are kinda different
+    "across": BridgeEventConfig(
+        deposits=(
+            EventPairFlow(
+                name="deposit_fill",
+                source=NormalizedEventType.DEPOSIT_INTENT,
+                destination=NormalizedEventType.FILL_EXECUTED,
+                source_key=("correlation_id",),  # deposit_id
+                destination_key=("correlation_id",),  # deposit_id
+            ),
+        ),
+        todo="TODO: relayer_refund cannot be reliably paired with a deposit/fill.",
+    ),
+    "mayan": BridgeEventConfig(
+        todo="TODO: define Mayan event pair grouping.",
+    ),
+    "debridge": BridgeEventConfig(
+        todo="TODO: define DeBridge event pair grouping.",
+    ),
+    "stargate": BridgeEventConfig(
+        todo="TODO: define Stargate event pair grouping.",
+    ),
 }
 
-class Bridges(Enum): # supported bridges
+
+class Bridges(Enum):  # supported bridges
     STARGATE = "stargate"
     CCTP = "cctp"
     CCIP = "ccip"
@@ -92,10 +204,11 @@ TIME_THRESHOLDS = {
     Bridges.ACROSS.value: 3600,  # 1 hour
 }
 
-class BlockConfirmationThresholds(int, Enum):
-    RONIN = 120
-    POLYGON = 180
-    OMNIBRIDGE = 20
-    CCIP = 20
-    CCTP = 20
-    ACROSS = 20
+BlockConfirmationThresholds = {
+    Bridges.RONIN.value: 120,
+    Bridges.POLYGON.value: 180,
+    Bridges.OMNIBRIDGE.value: 20,
+    Bridges.CCIP.value: 20,
+    Bridges.CCTP.value: 20,
+    Bridges.ACROSS.value: 20,
+}

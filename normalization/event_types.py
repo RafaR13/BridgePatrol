@@ -69,6 +69,7 @@ class NormalizedEventType(str, Enum):
     LOCKED_TOKEN = "LOCKED_TOKEN" # lock
     STATE_SYNCED = "STATE_SYNCED" # check
     STATE_COMMITTED = "STATE_COMMITTED" # check
+    NEW_DEPOSIT_BLOCK = "NEW_DEPOSIT_BLOCK" # plasma deposit checkpoint
     TOKEN_DEPOSITED = "TOKEN_DEPOSITED" # mint on destination
     POL_WITHDRAW = "POL_WITHDRAW" # burn (on destination)
     BRIDGE_WITHDRAWAL = "BRIDGE_WITHDRAWAL" # proof?

@@ -79,11 +79,11 @@ from normalization.mappers.polygon.mapper import (
     map_pol_withdraw,
     map_state_committed,
     map_state_synced,
-    map_token_deposited,
+    map_token_deposited as map_polygon_token_deposited,
 )
 from normalization.mappers.ronin.mapper import (
     map_deposit_requested,
-    map_token_deposited,
+    map_token_deposited as map_ronin_token_deposited,
     map_token_withdrew,
     map_withdrawal_requested,
 )
@@ -262,7 +262,7 @@ BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
             PolygonTokenDeposited,
             "polygon_token_deposited",
             _id_or_fallback("transaction_hash", "user", "root_token", "child_token", "amount"),
-            map_token_deposited,
+            map_polygon_token_deposited,
         ),
         NormalizationJob(
             PolygonBridgeWithdraw,
@@ -288,7 +288,7 @@ BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
             RoninTokenDeposited,
             "ronin_token_deposited",
             lambda row: str(row.deposit_id),
-            map_token_deposited,
+            map_ronin_token_deposited,
         ),
         NormalizationJob(
             RoninWithdrawalRequested,
