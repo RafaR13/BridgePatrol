@@ -83,7 +83,7 @@ def map_state_committed(row, tx_ctx, cctx_id=None):
 
 
 def map_token_deposited(row, tx_ctx, cctx_id=None):
-        return NormalizedEvent(
+    return NormalizedEvent(
         bridge="polygon",
         blockchain=row.blockchain,
         raw_table="polygon_token_deposited",
@@ -112,7 +112,7 @@ def map_token_deposited(row, tx_ctx, cctx_id=None):
 
 
 def map_pol_withdraw(row, tx_ctx, cctx_id=None):
-        return NormalizedEvent(
+    return NormalizedEvent(
         bridge="polygon",
         blockchain=row.blockchain,
         raw_table="polygon_pol_withdraw",
@@ -182,6 +182,30 @@ def map_exited_token(row, tx_ctx, cctx_id=None):
         actor_to=row.exitor,
         token_in=row.root_token,
         token_out=row.root_token,
+        amount_in=row.amount,
+        amount_out=row.amount,
+        contract_address=tx_ctx.to_address if tx_ctx else None,
+        status=str(tx_ctx.status) if tx_ctx else None,
+        extra_data=None,
+    )
+
+
+def map_new_deposit_block(row, tx_ctx, cctx_id=None):
+    return NormalizedEvent(
+        bridge="polygon",
+        blockchain=row.blockchain,
+        raw_table="polygon_new_deposit_block",
+        raw_pk=str(row.id),
+        transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
+        block_number=tx_ctx.block_number if tx_ctx else None,
+        timestamp=tx_ctx.timestamp if tx_ctx else None,
+        event_type=NormalizedEventType.NEW_DEPOSIT_BLOCK,
+        correlation_id=str(row.deposit_block_id),
+        src_blockchain=row.blockchain,
+        actor_from=row.owner,
+        token_in=row.token,
+        token_out=row.token,
         amount_in=row.amount,
         amount_out=row.amount,
         contract_address=tx_ctx.to_address if tx_ctx else None,

@@ -33,6 +33,7 @@ from db.repository.bridge_tables.polygon import (
     PolygonBridgeWithdraw,
     PolygonExitedToken,
     PolygonLockedToken,
+    PolygonNewDepositBlock,
     PolygonPOLWithdraw,
     PolygonStateCommitted,
     PolygonStateSynced,
@@ -76,6 +77,7 @@ from normalization.mappers.polygon.mapper import (
     map_bridge_withdraw,
     map_exited_token,
     map_locked_token,
+    map_new_deposit_block,
     map_pol_withdraw,
     map_state_committed,
     map_state_synced,
@@ -263,6 +265,12 @@ BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
             "polygon_token_deposited",
             _id_or_fallback("transaction_hash", "user", "root_token", "child_token", "amount"),
             map_polygon_token_deposited,
+        ),
+        NormalizationJob(
+            PolygonNewDepositBlock,
+            "polygon_new_deposit_block",
+            _id_or_fallback("transaction_hash", "owner", "token", "amount", "deposit_block_id"),
+            map_new_deposit_block,
         ),
         NormalizationJob(
             PolygonBridgeWithdraw,

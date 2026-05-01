@@ -84,6 +84,18 @@ class PolygonBridgeWithdraw(Base):
     amount = Column(Numeric(30, 0), nullable=False)
 
 
+class PolygonNewDepositBlock(Base):
+    __tablename__ = "polygon_new_deposit_block"
+
+    id = Column(BigInteger, nullable=False, autoincrement=True, primary_key=True)
+    blockchain = Column(String(10), nullable=False)
+    transaction_hash = Column(String(66), nullable=False)
+    owner = Column(String(42), nullable=False)
+    token = Column(String(42), nullable=False)
+    amount = Column(Numeric(30, 0), nullable=False)
+    deposit_block_id = Column(BigInteger, nullable=False)
+
+
 class PolygonBlockchainTransactions(BlockchainTransaction):
     __tablename__ = "polygon_blockchain_transactions"
 
