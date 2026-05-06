@@ -45,6 +45,7 @@ class EventPairFlow:
     source_key: tuple[str, ...] = ("correlation_id",)
     destination_key: tuple[str, ...] = ("correlation_id",)
     related_events: tuple[RelatedEvent, ...] = ()
+    amount_check: bool = False
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,7 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
                 destination=NormalizedEventType.TOKEN_DEPOSITED,
                 source_key=("correlation_id",),  # deposit_id
                 destination_key=("correlation_id",),  # deposit_id
+                amount_check=True,
             ),
         ),
         withdrawals=(
@@ -72,6 +74,7 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
                 destination=NormalizedEventType.TOKEN_WITHDREW,
                 source_key=("correlation_id",),  # withdrawal_id
                 destination_key=("correlation_id",),  # withdrawal_id
+                amount_check=True,
             ),
         ),
     ),
@@ -126,6 +129,7 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
                         event_field="extra_data.deposit_block_id",
                     ),
                 ),
+                amount_check=True,
             ),
         ),
         withdrawals=(
@@ -135,6 +139,7 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
                 destination=NormalizedEventType.BRIDGE_WITHDRAWAL,
                 source_key=("correlation_id",),  # token/from_address/amount
                 destination_key=("correlation_id",),  # token/user/amount
+                amount_check=True,
             ),
             EventPairFlow(
                 name="pos_withdrawal",
@@ -142,6 +147,7 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
                 destination=NormalizedEventType.EXITED_TOKEN,
                 source_key=("correlation_id",),  # root_token/from_address/amount
                 destination_key=("correlation_id",),  # root_token/exitor/amount
+                amount_check=True,
             ),
         ),
     ),
@@ -167,6 +173,7 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
                 destination=NormalizedEventType.MESSAGE_RECEIVED,
                 source_key=("correlation_id",),  # nonce
                 destination_key=("correlation_id",),  # nonce
+                amount_check=True,
             ),
         ),
     ),

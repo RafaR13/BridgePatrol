@@ -176,8 +176,7 @@ class Analyser(ABC):
         """Run amount checks that only need normalized events."""
         alerts: List[DetectionAlert] = []
 
-        alerts.extend(self.over_mint(self.bridge))
-        alerts.extend(self.over_release(self.bridge))
+        alerts.extend(self.amount_mismatch(self.bridge))
         return alerts
 
     def analyse_source_destination(
@@ -393,19 +392,106 @@ class Analyser(ABC):
                 )
         return alerts
 
+    def _pick_amount_event(
+        self, events: list[NormalizedEvent]
+    ) -> NormalizedEvent | None:
+        for event in events:
+            if event.amount_out is not None or event.amount_in is not None:
+                return event
+        return None
+
+    def _amount_for_comparison(self, event: NormalizedEvent | None):
+        if event is None:
+            return None
+        return event.amount_out if event.amount_out is not None else event.amount_in
+
+    def _token_for_comparison(self, event: NormalizedEvent | None):
+        if event is None:
+            return None
+        return event.token_out if event.token_out is not None else event.token_in
+
+    def amount_mismatch(self, bridge: str) -> list[DetectionAlert]:
+        alerts = []
+
+        for flow_type in ("deposits", "withdrawals"):
+            for flow in self._configured_flows(bridge, flow_type):
+                if not flow.amount_check:
+                    continue
+
+                grouped_events = self.fetch_event_pairs(bridge, flow)
+                for correlation_id, events in grouped_events.items():
+                    if not events["destination"] or not events["source"]:
+                        continue
+
+                    source_event = self._pick_amount_event(events["source"])
+                    destination_event = self._pick_amount_event(events["destination"])
+                    source_amount = self._amount_for_comparison(source_event)
+                    destination_amount = self._amount_for_comparison(destination_event)
+
+                    if (
+                        source_event is None
+                        or destination_event is None
+                        or source_amount is None
+                        or destination_amount is None
+                        or source_amount == destination_amount
+                    ):
+                        continue
+
+                    source_token = self._token_for_comparison(source_event)
+                    destination_token = self._token_for_comparison(destination_event)
+                    token_note = ""
+                    if (
+                        source_token is not None
+                        and destination_token is not None
+                        and str(source_token).lower() != str(destination_token).lower()
+                    ):
+                        token_note = (
+                            f" Source token={source_token}; destination token={destination_token}."
+                        )
+
+                    alerts.append(
+                        self.create_detection_alert(
+                            signature_type=SignatureType.AMOUNT_MISMATCH,
+                            severity=AlertSeverity.MEDIUM,
+                            bridge=bridge,
+                            correlation_id=correlation_id,
+                            correlation_type=None,
+                            src_event_id=source_event.id,
+                            dst_event_id=destination_event.id,
+                            title=f"{bridge}: token amount mismatch detected",
+                            description=(
+                                f"Found source event {source_event.event_type} with amount {source_amount} "
+                                f"and destination event {destination_event.event_type} with amount "
+                                f"{destination_amount} for correlation_id={correlation_id}. "
+                                f"Flow={flow.name}.{token_note}"
+                            ),
+                            created_at_ts=destination_event.timestamp or source_event.timestamp,
+                            probability="TODO",
+                        )
+                    )
+
+        return alerts
+
     def over_mint(self, bridge: str) -> list[DetectionAlert]:
         alerts = []
         for flow in self._configured_flows(bridge, "deposits"):
+            if not flow.amount_check:
+                continue
+
             grouped_events = self.fetch_event_pairs(bridge, flow)
             for correlation_id, events in grouped_events.items():
                 if not events["destination"] or not events["source"]:
                     continue
-                mint_event = events["destination"][0]
-                lock_event = events["source"][0]
+                mint_event = self._pick_amount_event(events["destination"])
+                lock_event = self._pick_amount_event(events["source"])
+                mint_amount = self._amount_for_comparison(mint_event)
+                lock_amount = self._amount_for_comparison(lock_event)
                 if (
-                    mint_event.amount_out is not None
-                    and lock_event.amount_out is not None
-                    and mint_event.amount_out > lock_event.amount_out
+                    mint_event is not None
+                    and lock_event is not None
+                    and mint_amount is not None
+                    and lock_amount is not None
+                    and mint_amount > lock_amount
                 ):
                     alerts.append(
                         self.create_detection_alert(
@@ -418,9 +504,9 @@ class Analyser(ABC):
                             dst_event_id=mint_event.id,
                             title=f"{bridge}: over-mint detected",
                             description=(
-                                f"Found mint event {mint_event.event_type} with amount {mint_event.amount_out} "
+                                f"Found mint event {mint_event.event_type} with amount {mint_amount} "
                                 f"which is greater than the corresponding lock event {lock_event.event_type} "
-                                f"with amount {lock_event.amount_out} for correlation_id={correlation_id}. "
+                                f"with amount {lock_amount} for correlation_id={correlation_id}. "
                                 f"Flow={flow.name}."
                             ),
                             created_at_ts=mint_event.timestamp,
@@ -432,16 +518,23 @@ class Analyser(ABC):
     def over_release(self, bridge: str) -> list[DetectionAlert]:
         alerts = []
         for flow in self._configured_flows(bridge, "withdrawals"):
+            if not flow.amount_check:
+                continue
+
             grouped_events = self.fetch_event_pairs(bridge, flow)
             for correlation_id, events in grouped_events.items():
                 if not events["destination"] or not events["source"]:
                     continue
-                release_event = events["destination"][0]
-                burn_event = events["source"][0]
+                release_event = self._pick_amount_event(events["destination"])
+                burn_event = self._pick_amount_event(events["source"])
+                release_amount = self._amount_for_comparison(release_event)
+                burn_amount = self._amount_for_comparison(burn_event)
                 if (
-                    release_event.amount_out is not None
-                    and burn_event.amount_out is not None
-                    and release_event.amount_out > burn_event.amount_out
+                    release_event is not None
+                    and burn_event is not None
+                    and release_amount is not None
+                    and burn_amount is not None
+                    and release_amount > burn_amount
                 ):
                     alerts.append(
                         self.create_detection_alert(
@@ -454,9 +547,9 @@ class Analyser(ABC):
                             dst_event_id=release_event.id,
                             title=f"{bridge}: over-release detected",
                             description=(
-                                f"Found release event {release_event.event_type} with amount {release_event.amount_out} "
+                                f"Found release event {release_event.event_type} with amount {release_amount} "
                                 f"which is greater than the corresponding burn event {burn_event.event_type} "
-                                f"with amount {burn_event.amount_out} for correlation_id={correlation_id}. "
+                                f"with amount {burn_amount} for correlation_id={correlation_id}. "
                                 f"Flow={flow.name}."
                             ),
                             created_at_ts=release_event.timestamp,
