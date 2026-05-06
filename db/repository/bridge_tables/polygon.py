@@ -96,6 +96,19 @@ class PolygonNewDepositBlock(Base):
     deposit_block_id = Column(BigInteger, nullable=False)
 
 
+class PolygonChildTokenBurn(Base):
+    __tablename__ = "polygon_child_token_burn"
+
+    id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
+    blockchain = Column(String(10), nullable=False)
+    transaction_hash = Column(String(66), nullable=False)
+    log_index = Column(Integer, nullable=False)
+    child_token = Column(String(42), nullable=False)
+    from_address = Column(String(42), nullable=False)
+    amount = Column(Numeric(30, 0), nullable=False)
+    root_token = Column(String(42), nullable=False)
+
+
 class PolygonBlockchainTransactions(BlockchainTransaction):
     __tablename__ = "polygon_blockchain_transactions"
 

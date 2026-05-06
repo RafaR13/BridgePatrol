@@ -17,8 +17,20 @@ def _count_raw_rows(session) -> int:
     pol_withdraw = session.execute(text("SELECT COUNT(*) FROM polygon_pol_withdraw")).scalar() or 0
     bridge_withdraw = session.execute(text("SELECT COUNT(*) FROM polygon_bridge_withdraw")).scalar() or 0
     exited_tokens = session.execute(text("SELECT COUNT(*) FROM polygon_exited_token")).scalar() or 0
+    child_token_burns = (
+        session.execute(text("SELECT COUNT(*) FROM polygon_child_token_burn")).scalar() or 0
+    )
 
-    return locked_tokens + state_synced + state_committed + token_deposited + pol_withdraw + bridge_withdraw + exited_tokens
+    return (
+        locked_tokens
+        + state_synced
+        + state_committed
+        + token_deposited
+        + pol_withdraw
+        + bridge_withdraw
+        + exited_tokens
+        + child_token_burns
+    )
 
 
 def _count_normalized_rows(session) -> int:
@@ -68,6 +80,7 @@ def test_polygon_normalization():
             "polygon_pol_withdraw",
             "polygon_bridge_withdraw",
             "polygon_exited_token",
+            "polygon_child_token_burn",
         }
         assert sample.transaction_hash is not None
         assert sample.event_type is not None

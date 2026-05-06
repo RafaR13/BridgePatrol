@@ -3,6 +3,14 @@ from db.repository.normalized_event.normalized_event_model import NormalizedEven
 from normalization.common.utils import to_json
 
 
+def _exit_burn_correlation_id(root_token, address, amount):
+    return f"{str(root_token).lower()}:{str(address).lower()}:{str(amount)}"
+
+
+def _token_address_amount_correlation_id(token, address, amount):
+    return f"{str(token).lower()}:{str(address).lower()}:{str(amount)}"
+
+
 def map_locked_token(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="polygon",
@@ -93,7 +101,7 @@ def map_token_deposited(row, tx_ctx, cctx_id=None):
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.TOKEN_DEPOSITED,
-        correlation_id=str(row.transaction_hash),
+        correlation_id=str(row.deposit_count),
         dst_blockchain=row.blockchain,
         actor_from=None,
         actor_to=row.user,
@@ -106,12 +114,19 @@ def map_token_deposited(row, tx_ctx, cctx_id=None):
         extra_data=to_json(
             {
                 "deposit_count": row.deposit_count,
+                "deposit_block_id": row.deposit_count,
             }
         ),
     )
 
 
 def map_pol_withdraw(row, tx_ctx, cctx_id=None):
+    correlation_id = _token_address_amount_correlation_id(
+        row.token,
+        row.from_address,
+        row.amount,
+    )
+
     return NormalizedEvent(
         bridge="polygon",
         blockchain=row.blockchain,
@@ -122,7 +137,7 @@ def map_pol_withdraw(row, tx_ctx, cctx_id=None):
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.POL_WITHDRAW,
-        correlation_id=row.transaction_hash,
+        correlation_id=correlation_id,
         src_blockchain=row.blockchain,
         actor_from=row.from_address,
         actor_to=None,
@@ -142,6 +157,12 @@ def map_pol_withdraw(row, tx_ctx, cctx_id=None):
 
 
 def map_bridge_withdraw(row, tx_ctx, cctx_id=None):
+    correlation_id = _token_address_amount_correlation_id(
+        row.token,
+        row.user,
+        row.amount,
+    )
+
     return NormalizedEvent(
         bridge="polygon",
         blockchain=row.blockchain,
@@ -152,7 +173,7 @@ def map_bridge_withdraw(row, tx_ctx, cctx_id=None):
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.BRIDGE_WITHDRAWAL,
-        correlation_id=str(row.exit_id),
+        correlation_id=correlation_id,
         actor_from=row.user,
         actor_to=tx_ctx.to_address if tx_ctx else None,
         token_in=row.token,
@@ -166,6 +187,8 @@ def map_bridge_withdraw(row, tx_ctx, cctx_id=None):
 
 
 def map_exited_token(row, tx_ctx, cctx_id=None):
+    correlation_id = _exit_burn_correlation_id(row.root_token, row.exitor, row.amount)
+
     return NormalizedEvent(
         bridge="polygon",
         blockchain=row.blockchain,
@@ -176,7 +199,7 @@ def map_exited_token(row, tx_ctx, cctx_id=None):
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.EXITED_TOKEN,
-        correlation_id=row.transaction_hash,
+        correlation_id=correlation_id,
         dst_blockchain=row.blockchain,
         actor_from=None,
         actor_to=row.exitor,
@@ -186,7 +209,12 @@ def map_exited_token(row, tx_ctx, cctx_id=None):
         amount_out=row.amount,
         contract_address=tx_ctx.to_address if tx_ctx else None,
         status=str(tx_ctx.status) if tx_ctx else None,
-        extra_data=None,
+        extra_data=to_json(
+            {
+                "exitor": row.exitor,
+                "root_token": row.root_token,
+            }
+        ),
     )
 
 
@@ -210,5 +238,42 @@ def map_new_deposit_block(row, tx_ctx, cctx_id=None):
         amount_out=row.amount,
         contract_address=tx_ctx.to_address if tx_ctx else None,
         status=str(tx_ctx.status) if tx_ctx else None,
-        extra_data=None,
+        extra_data=to_json(
+            {
+                "deposit_block_id": row.deposit_block_id,
+            }
+        ),
+    )
+
+
+def map_child_token_burn(row, tx_ctx, cctx_id=None):
+    correlation_id = _exit_burn_correlation_id(row.root_token, row.from_address, row.amount)
+
+    return NormalizedEvent(
+        bridge="polygon",
+        blockchain=row.blockchain,
+        raw_table="polygon_child_token_burn",
+        raw_pk=str(row.id),
+        transaction_hash=row.transaction_hash,
+        cctx_id=cctx_id,
+        block_number=tx_ctx.block_number if tx_ctx else None,
+        timestamp=tx_ctx.timestamp if tx_ctx else None,
+        event_type=NormalizedEventType.CHILD_TOKEN_BURN,
+        correlation_id=correlation_id,
+        src_blockchain=row.blockchain,
+        actor_from=row.from_address,
+        token_in=row.child_token,
+        token_out=row.child_token,
+        amount_in=row.amount,
+        amount_out=row.amount,
+        contract_address=tx_ctx.to_address if tx_ctx else None,
+        status=str(tx_ctx.status) if tx_ctx else None,
+        extra_data=to_json(
+            {
+                "log_index": row.log_index,
+                "from_address": row.from_address,
+                "root_token": row.root_token,
+                "child_token": row.child_token,
+            }
+        ),
     )

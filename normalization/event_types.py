@@ -72,6 +72,7 @@ class NormalizedEventType(str, Enum):
     NEW_DEPOSIT_BLOCK = "NEW_DEPOSIT_BLOCK" # plasma deposit checkpoint
     TOKEN_DEPOSITED = "TOKEN_DEPOSITED" # mint on destination
     POL_WITHDRAW = "POL_WITHDRAW" # burn (on destination)
+    CHILD_TOKEN_BURN = "CHILD_TOKEN_BURN" # ERC20 burn on Polygon child chain
     BRIDGE_WITHDRAWAL = "BRIDGE_WITHDRAWAL" # proof?
     EXITED_TOKEN = "EXITED_TOKEN" # release (on source)
 

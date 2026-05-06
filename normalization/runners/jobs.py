@@ -31,6 +31,7 @@ from db.repository.bridge_tables.omnibridge import (
 )
 from db.repository.bridge_tables.polygon import (
     PolygonBridgeWithdraw,
+    PolygonChildTokenBurn,
     PolygonExitedToken,
     PolygonLockedToken,
     PolygonNewDepositBlock,
@@ -75,6 +76,7 @@ from normalization.mappers.omnibridge.mapper import (
 )
 from normalization.mappers.polygon.mapper import (
     map_bridge_withdraw,
+    map_child_token_burn,
     map_exited_token,
     map_locked_token,
     map_new_deposit_block,
@@ -261,6 +263,12 @@ BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
             map_exited_token,
         ),
         NormalizationJob(
+            PolygonChildTokenBurn,
+            "polygon_child_token_burn",
+            _id_or_fallback("transaction_hash", "log_index"),
+            map_child_token_burn,
+        ),
+        NormalizationJob(
             PolygonTokenDeposited,
             "polygon_token_deposited",
             _id_or_fallback("transaction_hash", "user", "root_token", "child_token", "amount"),
@@ -275,13 +283,13 @@ BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
         NormalizationJob(
             PolygonBridgeWithdraw,
             "polygon_bridge_withdraw",
-            _id_or_fallback("transaction_hash", "user", "root_token", "child_token", "amount"),
+            _id_or_fallback("transaction_hash", "user", "token", "amount"),
             map_bridge_withdraw,
         ),
         NormalizationJob(
             PolygonPOLWithdraw,
             "polygon_pol_withdraw",
-            _id_or_fallback("transaction_hash", "user", "root_token", "child_token", "amount"),
+            _id_or_fallback("transaction_hash", "from_address", "token", "amount"),
             map_pol_withdraw,
         ),
     ),

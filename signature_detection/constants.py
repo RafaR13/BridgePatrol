@@ -89,6 +89,8 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
                         side="source",
                         anchor_side="source",
                         anchor_event_type=NormalizedEventType.STATE_SYNCED,
+                        anchor_field="transaction_hash",
+                        event_field="transaction_hash",
                     ),
                 ),
             ),
@@ -99,23 +101,26 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
                 source_key=("correlation_id",),  # state_id
                 destination_key=("correlation_id",),  # state_id
                 related_events=(
-                    # TODO: add NEW_DEPOSIT_BLOCK normalization with deposit_block_id in extra_data.
                     RelatedEvent(
                         event_type=NormalizedEventType.NEW_DEPOSIT_BLOCK,
                         side="source",
                         anchor_side="source",
                         anchor_event_type=NormalizedEventType.STATE_SYNCED,
+                        anchor_field="transaction_hash",
+                        event_field="transaction_hash",
                     ),
                     RelatedEvent(
                         event_type=NormalizedEventType.TOKEN_DEPOSITED,
                         side="destination",
                         anchor_side="destination",
                         anchor_event_type=NormalizedEventType.STATE_COMMITTED,
+                        anchor_field="transaction_hash",
+                        event_field="transaction_hash",
                     ),
                     RelatedEvent(
                         event_type=NormalizedEventType.TOKEN_DEPOSITED,
                         side="destination",
-                        anchor_side="destination",
+                        anchor_side="source",
                         anchor_event_type=NormalizedEventType.NEW_DEPOSIT_BLOCK,
                         anchor_field="extra_data.deposit_block_id",
                         event_field="extra_data.deposit_block_id",
@@ -128,8 +133,15 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
                 name="plasma_withdrawal",
                 source=NormalizedEventType.POL_WITHDRAW,
                 destination=NormalizedEventType.BRIDGE_WITHDRAWAL,
-                source_key=("token_in", "actor_from", "amount_out"),
-                destination_key=("token_in", "actor_from", "amount_out"),
+                source_key=("correlation_id",),  # token/from_address/amount
+                destination_key=("correlation_id",),  # token/user/amount
+            ),
+            EventPairFlow(
+                name="pos_withdrawal",
+                source=NormalizedEventType.CHILD_TOKEN_BURN,
+                destination=NormalizedEventType.EXITED_TOKEN,
+                source_key=("correlation_id",),  # root_token/from_address/amount
+                destination_key=("correlation_id",),  # root_token/exitor/amount
             ),
         ),
     ),
