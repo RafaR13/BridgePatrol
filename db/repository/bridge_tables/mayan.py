@@ -3,12 +3,14 @@ from sqlalchemy import BigInteger, Boolean, Column, Float, Integer, Numeric, Str
 from db.repository.common_models import BlockchainTransaction
 from db.database import Base
 
+
 class MayanSwapAndForwarded(Base):
     __tablename__ = "mayan_swap_and_forwarded"
 
     id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     token_in = Column(String(42), nullable=False)
     amount_in = Column(Numeric(50, 0), nullable=False)
     swap_protocol = Column(String(42), nullable=False)
@@ -36,6 +38,7 @@ class MayanForwarded(Base):
     id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     token = Column(String(42), nullable=False)
     amount = Column(Numeric(50, 0), nullable=True)
     mayan_protocol = Column(String(42), nullable=False)
@@ -60,6 +63,7 @@ class MayanOrderCreated(Base):
     key = Column(String(64), nullable=False, primary_key=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
 
 
 class MayanOrderFulfilled(Base):
@@ -70,6 +74,7 @@ class MayanOrderFulfilled(Base):
     net_amount = Column(Numeric(50, 0), nullable=False)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     middle_dst_token = Column(String(44), nullable=True)
     middle_dst_amount = Column(Numeric(50, 0), nullable=True)
 
@@ -80,6 +85,7 @@ class MayanOrderUnlocked(Base):
     key = Column(String(64), nullable=False, primary_key=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
 
 
 ### SOLANA SPECIFIC MODELS ###
@@ -237,7 +243,6 @@ class MayanAuctionBid(Base):
     key_rnd = Column(String(128), nullable=False)
     amount_bid = Column(Numeric(30, 0), nullable=False)
     order_hash = Column(String(64), primary_key=True, nullable=False)
-
 
 
 class MayanAuctionClose(Base):

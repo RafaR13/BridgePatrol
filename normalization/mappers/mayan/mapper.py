@@ -1,6 +1,6 @@
 from normalization.event_types import NormalizedEventType
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
-from normalization.common.utils import to_json
+from normalization.common.utils import event_contract_address, to_json
 
 
 def _tx_block_number(tx_ctx):
@@ -9,10 +9,6 @@ def _tx_block_number(tx_ctx):
 
 def _tx_timestamp(tx_ctx):
     return tx_ctx.timestamp if tx_ctx else None
-
-
-def _tx_contract(tx_ctx):
-    return tx_ctx.to_address if tx_ctx else None
 
 
 def _tx_status(tx_ctx):
@@ -42,7 +38,7 @@ def map_mayan_swap_and_forwarded(row, tx_ctx, cctx_id=None):
         token_out=row.token_out,
         amount_in=row.amount_in,
         amount_out=row.min_amount_out,
-        contract_address=_tx_contract(tx_ctx),
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
@@ -86,7 +82,7 @@ def map_mayan_forwarded(row, tx_ctx, cctx_id=None):
         token_out=row.token_out,
         amount_in=row.amount,
         amount_out=row.min_amount_out,
-        contract_address=_tx_contract(tx_ctx),
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
@@ -124,7 +120,7 @@ def map_mayan_order_created(row, tx_ctx, cctx_id=None):
         token_out=None,
         amount_in=None,
         amount_out=None,
-        contract_address=_tx_contract(tx_ctx),
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json({"key": row.key}),
     )
@@ -150,7 +146,7 @@ def map_mayan_order_fulfilled(row, tx_ctx, cctx_id=None):
         token_out=row.middle_dst_token if row.middle_dst_token else None,
         amount_in=row.middle_dst_amount if row.middle_dst_amount is not None else row.net_amount,
         amount_out=row.net_amount,
-        contract_address=_tx_contract(tx_ctx),
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
@@ -184,7 +180,7 @@ def map_mayan_order_unlocked(row, tx_ctx, cctx_id=None):
         token_out=None,
         amount_in=None,
         amount_out=None,
-        contract_address=_tx_contract(tx_ctx),
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json({"key": row.key}),
     )
@@ -210,7 +206,7 @@ def map_mayan_init_order(row, tx_ctx, cctx_id=None):
         token_out=row.token_out,
         amount_in=row.original_src_amount,
         amount_out=row.amount_out_min,
-        contract_address=row.state,
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
@@ -259,11 +255,12 @@ def map_mayan_register_order(row, tx_ctx, cctx_id=None):
         token_out=row.token_out,
         amount_in=None,
         amount_out=row.amount_out_min,
-        contract_address=row.state,
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
                 "signature": row.signature,
+                "state": row.state,
                 "relayer": row.relayer,
                 "system_program": row.system_program,
                 "gas_drop": str(row.gas_drop) if row.gas_drop is not None else None,
@@ -300,7 +297,7 @@ def map_mayan_auction_bid(row, tx_ctx, cctx_id=None):
         token_out=row.token_out,
         amount_in=None,
         amount_out=row.amount_bid,
-        contract_address=row.auction_state,
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
@@ -346,7 +343,7 @@ def map_mayan_set_auction_winner(row, tx_ctx, cctx_id=None):
         token_out=None,
         amount_in=None,
         amount_out=None,
-        contract_address=row.auction,
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
@@ -378,7 +375,7 @@ def map_mayan_auction_close(row, tx_ctx, cctx_id=None):
         token_out=None,
         amount_in=None,
         amount_out=None,
-        contract_address=row.auction,
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
@@ -411,10 +408,11 @@ def map_mayan_fulfill_order(row, tx_ctx, cctx_id=None):
         token_out=row.mint_to,
         amount_in=row.middle_dst_amount if row.middle_dst_amount is not None else row.amount,
         amount_out=row.amount,
-        contract_address=row.state,
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
+                "state": row.state,
                 "state_to_acc": row.state_to_acc,
                 "addr_unlocker": row.addr_unlocker,
                 "middle_dst_token": row.middle_dst_token,
@@ -447,10 +445,11 @@ def map_mayan_unlock(row, tx_ctx, cctx_id=None):
         token_out=row.mint_from,
         amount_in=row.amount,
         amount_out=row.amount,
-        contract_address=row.state,
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
+                "state": row.state,
                 "vaa_unlock": row.vaa_unlock,
                 "state_from_acc": row.state_from_acc,
                 "driver_acc": row.driver_acc,
@@ -483,10 +482,11 @@ def map_mayan_settle(row, tx_ctx, cctx_id=None):
         token_out=row.mint_to,
         amount_in=None,
         amount_out=None,
-        contract_address=row.state,
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
+                "state": row.state,
                 "state_to_acc": row.state_to_acc,
                 "referrer": row.referrer,
                 "fee_collector": row.fee_collector,

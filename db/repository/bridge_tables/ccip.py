@@ -3,12 +3,14 @@ from sqlalchemy import BigInteger, Boolean, Column, Float, Integer, Numeric, Str
 from db.repository.common_models import BlockchainTransaction
 from db.database import Base
 
+
 class CCIPSendRequested(Base):
     __tablename__ = "ccip_send_requested"
 
     id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     nonce = Column(Integer, nullable=False)
     sender = Column(String(42), nullable=False)
     receiver = Column(String(42), nullable=False)
@@ -29,6 +31,7 @@ class CCIPExecutionStateChanged(Base):
     id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     sequence_number = Column(Integer, nullable=False)
     message_id = Column(String(66), nullable=False)
     state = Column(Integer, nullable=False)

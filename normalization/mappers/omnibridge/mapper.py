@@ -1,6 +1,6 @@
 from normalization.event_types import NormalizedEventType
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
-from normalization.common.utils import to_json
+from normalization.common.utils import event_contract_address, to_json
 
 
 def _tx_block_number(tx_ctx):
@@ -9,10 +9,6 @@ def _tx_block_number(tx_ctx):
 
 def _tx_timestamp(tx_ctx):
     return tx_ctx.timestamp if tx_ctx else None
-
-
-def _tx_contract(tx_ctx):
-    return tx_ctx.to_address if tx_ctx else None
 
 
 def _tx_status(tx_ctx):
@@ -39,7 +35,7 @@ def map_tokens_bridging_initiated(row, tx_ctx, cctx_id=None):
         token_out=row.token,
         amount_in=row.value,
         amount_out=row.value,
-        contract_address=_tx_contract(tx_ctx),
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=None,
     )
@@ -65,7 +61,7 @@ def map_tokens_bridged(row, tx_ctx, cctx_id=None):
         token_out=row.token,
         amount_in=row.value,
         amount_out=row.value,
-        contract_address=_tx_contract(tx_ctx),
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=None,
     )
@@ -91,7 +87,7 @@ def map_relayed_message(row, tx_ctx, cctx_id=None):
         token_out=None,
         amount_in=row.value,
         amount_out=row.value,
-        contract_address=_tx_contract(tx_ctx),
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
@@ -121,7 +117,7 @@ def map_signed_for_user_request(row, tx_ctx, cctx_id=None):
         token_out=None,
         amount_in=None,
         amount_out=None,
-        contract_address=_tx_contract(tx_ctx),
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
@@ -152,7 +148,7 @@ def map_signed_for_affirmation(row, tx_ctx, cctx_id=None):
         token_out=None,
         amount_in=None,
         amount_out=None,
-        contract_address=_tx_contract(tx_ctx),
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
@@ -184,7 +180,7 @@ def map_user_request_for_signature(row, tx_ctx, cctx_id=None):
         token_out=None,
         amount_in=row.value,
         amount_out=row.value,
-        contract_address=_tx_contract(tx_ctx),
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
@@ -215,7 +211,7 @@ def map_affirmation_completed(row, tx_ctx, cctx_id=None):
         token_out=None,
         amount_in=row.value,
         amount_out=row.value,
-        contract_address=_tx_contract(tx_ctx),
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
@@ -245,7 +241,7 @@ def map_user_request_for_affirmation(row, tx_ctx, cctx_id=None):
         token_out=None,
         amount_in=row.value,
         amount_out=row.value,
-        contract_address=_tx_contract(tx_ctx),
+        contract_address=event_contract_address(row, tx_ctx),
         status=_tx_status(tx_ctx),
         extra_data=to_json(
             {
@@ -276,7 +272,7 @@ def map_user_request_for_affirmation(row, tx_ctx, cctx_id=None):
         token_out=None,
         amount_in=None,
         amount_out=None,
-        contract_address=row.to_address,
+        contract_address=event_contract_address(row, tx_ctx),
         status=str(row.status) if getattr(row, "status", None) is not None else None,
         extra_data=to_json(
             {

@@ -25,6 +25,11 @@ class SignatureType(str, Enum):
     OVER_RELEASE = "OVER_RELEASE"
     AMOUNT_MISMATCH = "AMOUNT_MISMATCH"
     PROOF_REPLAY = "PROOF_REPLAY"
+    UNAUTHORIZED_CONTRACT = "UNAUTHORIZED_CONTRACT"
+    CONTRACT_MISMATCH = "CONTRACT_MISMATCH"
+    DUPLICATE_SIGNATURE = "DUPLICATE_SIGNATURE"
+    INSUFFICIENT_SIGNATURES = "INSUFFICIENT_SIGNATURES"
+    RECEIPT_REPLAY = "RECEIPT_REPLAY"
 
 
 @dataclass(frozen=True)
@@ -198,6 +203,124 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
     "stargate": BridgeEventConfig(
         todo="TODO: define Stargate event pair grouping.",
     ),
+}
+
+
+POLYGON_POS_CORE = {
+    "root_chain_manager": (
+        "0xa0c68c638235ee32657e8f720a23cec1bfc77c77",
+    ),
+    "state_sender": (
+        "0x28e4f3a7f651294b9564800b2d01f35189a5bfbe",
+    ),
+    "child_chain_manager_proxy": (
+        "0xa6fa4fb5f76172d178d61b04b0ecd319c5d1caa",
+    ),
+}
+
+
+VERIFIED_CONTRACTS: dict[str, dict[str, dict[NormalizedEventType, tuple[str, ...]]]] = {
+    "polygon": {
+        "pos_deposit": {
+            NormalizedEventType.LOCKED_TOKEN: (
+                "0x40ec5b33f54e0e8a33a975908c5ba1c14e5bbbdf",
+                "0x8484ef722627bf18ca5ae6bcf031c23e6e922b30",
+            ),
+            NormalizedEventType.TOKEN_DEPOSITED: (
+                "0xd9c7c4ed4b66858301d0cb28cc88bf655fe34861",
+            ),
+        },
+        "plasma_deposit": {
+            NormalizedEventType.NEW_DEPOSIT_BLOCK: (
+                "0x401f6c983ea34274ec46f84d70b31c151321188b",
+            ),
+            NormalizedEventType.TOKEN_DEPOSITED: (
+                "0xd9c7c4ed4b66858301d0cb28cc88bf655fe34861",
+            ),
+        },
+        "pos_withdrawal": {
+            NormalizedEventType.CHILD_TOKEN_BURN: (),
+            NormalizedEventType.EXITED_TOKEN: (
+                "0x40ec5b33f54e0e8a33a975908c5ba1c14e5bbbdf",
+                "0x8484ef722627bf18ca5ae6bcf031c23e6e922b30",
+            ),
+        },
+        "plasma_withdrawal": {
+            NormalizedEventType.POL_WITHDRAW: (
+                "0x0000000000000000000000000000000000001010",
+            ),
+            NormalizedEventType.BRIDGE_WITHDRAWAL: (
+                "0x2a88696e0ffa76baa1338f2c74497cc013495922",
+            ),
+        },
+    },
+    "ronin": {
+        "deposit": {
+            NormalizedEventType.DEPOSIT_REQUESTED: (
+                "0x64192819ac13ef72bf6b5ae239ac672b43a9af08",
+            ),
+            NormalizedEventType.TOKEN_DEPOSITED: (
+                "0x0cf8ff40a508bdbc39fbe1bb679dcba64e65c7df",
+            ),
+        },
+        "withdrawal": {
+            NormalizedEventType.WITHDRAWAL_REQUESTED: (
+                "0x0cf8ff40a508bdbc39fbe1bb679dcba64e65c7df",
+            ),
+            NormalizedEventType.TOKEN_WITHDREW: (
+                "0x64192819ac13ef72bf6b5ae239ac672b43a9af08",
+            ),
+        },
+    },
+    "omnibridge": {},
+    "ccip": {
+        "message_execution": {},
+    },
+    "cctp": {
+        "burn_message": {
+            NormalizedEventType.DEPOSIT_FOR_BURN: (
+                "0xbd3fa81b58ba92a82136038b25adec7066af3155",
+                "0x19330d10d9cc8751218eaf51e8885d058642e08a",
+                "0x6b25532e1060ce10cc3b0a99e5683b91bfde6982",
+                "0x9daf8c91aefae50b9c0e69629d3f6ca40ca3b3fe",
+                "0x2b4069517957735be00cee0fadae88a26365528f",
+                "0x1682ae6375c4e4a97e4b583bc394c861a46d8962",
+            ),
+            NormalizedEventType.MESSAGE_RECEIVED: (
+                "0x0a992d191deec32afe36203ad87d7d289a738f81",
+                "0xc30362313fbba5cf9163f0bb16a0e01f01a896ca",
+                "0x8186359af5f57fbb40c6b14a588d2a59c0c29880",
+                "0xf3be9355363857f3e001be68856a2f96b4c39ba9",
+                "0x4d41f22c5a0e5c74090899e5a8fb597a8842b3e8",
+                "0xad09780d193884d503182ad4588450c416d6f9d4",
+            ),
+        },
+    },
+    "across": {
+        "deposit_fill": {
+            NormalizedEventType.DEPOSIT_INTENT: (
+                "0x5c7bcd6e7de5423a257d81b442095a1a6ced35c5",
+                "0x09aea4b2242abc8bb4bb78d537a67a245a7bec64",
+                "0xe35e9842fceaca96570b734083f4a58e8f7c5f2a",
+                "0x9295ee1d8c5b022be115a2ad3c30c72e34e7f096",
+                "0x6f26bf09b1c792e3228e5467807a900a503c0281",
+                "0x3bad7ad0728f9917d1bf08af5782dcbd516cdd96",
+                "0x7e63a5f1a8f0b4d0934b2f2327daed3f6bb2ee75",
+            ),
+            NormalizedEventType.FILL_EXECUTED: (
+                "0x5c7bcd6e7de5423a257d81b442095a1a6ced35c5",
+                "0x09aea4b2242abc8bb4bb78d537a67a245a7bec64",
+                "0xe35e9842fceaca96570b734083f4a58e8f7c5f2a",
+                "0x9295ee1d8c5b022be115a2ad3c30c72e34e7f096",
+                "0x6f26bf09b1c792e3228e5467807a900a503c0281",
+                "0x3bad7ad0728f9917d1bf08af5782dcbd516cdd96",
+                "0x7e63a5f1a8f0b4d0934b2f2327daed3f6bb2ee75",
+            ),
+        },
+    },
+    "mayan": {},
+    "debridge": {},
+    "stargate": {},
 }
 
 

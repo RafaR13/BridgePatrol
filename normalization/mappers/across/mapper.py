@@ -1,6 +1,6 @@
 from normalization.event_types import NormalizedEventType
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
-from normalization.common.utils import to_json, to_str
+from normalization.common.utils import event_contract_address, to_json, to_str
 
 
 def map_filled_relay(row, tx_ctx, cctx_id=None):
@@ -25,7 +25,7 @@ def map_filled_relay(row, tx_ctx, cctx_id=None):
         amount_in=row.input_amount,
         amount_out=row.output_amount,
         message_hash=to_str(row.message_hash),
-        contract_address=tx_ctx.to_address if tx_ctx else None,
+        contract_address=event_contract_address(row, tx_ctx),
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=to_json(
             {
@@ -59,7 +59,7 @@ def map_relayer_refund(row, tx_ctx, cctx_id=None):
         token_out=row.l2_token_address,
         amount_in=row.amount_to_return,
         amount_out=row.refund_amount,
-        contract_address=tx_ctx.to_address if tx_ctx else None,
+        contract_address=event_contract_address(row, tx_ctx),
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=None,
     )
@@ -85,7 +85,7 @@ def map_funds_deposited(row, tx_ctx, cctx_id=None):
         token_out=row.output_token,
         amount_in=row.input_amount,
         amount_out=row.output_amount,
-        contract_address=tx_ctx.to_address if tx_ctx else None,
+        contract_address=event_contract_address(row, tx_ctx),
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=to_json(
             {

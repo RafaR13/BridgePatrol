@@ -25,6 +25,7 @@ class DetectionAlert(Base):
 
     bridge = Column(String(32), nullable=False)
     correlation_id = Column(String(128), nullable=True)
+    correlation_type = Column(String(128), nullable=True)
 
     src_event_id = Column(BigInteger, nullable=True)
     dst_event_id = Column(BigInteger, nullable=True)

@@ -3,12 +3,14 @@ from sqlalchemy import BigInteger, Column, Float, Integer, Numeric, String
 from db.repository.common_models import BlockchainTransaction
 from db.database import Base
 
+
 class OmnibridgeTokensBridgingInitiated(Base):
     __tablename__ = "omnibridge_tokens_bridging_initiated"
 
     id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     token = Column(String(42), nullable=False)
     sender = Column(String(42), nullable=False)
     value = Column(Numeric(30, 0), nullable=False)
@@ -23,6 +25,7 @@ class OmnibridgeTokensBridged(Base):
     id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     token = Column(String(42), nullable=False)
     recipient = Column(String(42), nullable=False)
     value = Column(Numeric(30, 0), nullable=False)
@@ -35,6 +38,7 @@ class OmnibridgeRelayedMessage(Base):
     id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     recipient = Column(String(42), nullable=False)
     value = Column(Numeric(30, 0), nullable=False)
     src_transaction_hash = Column(String(66), nullable=False)
@@ -47,6 +51,7 @@ class OmnibridgeSignedForUserRequest(Base):
     id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     signer = Column(String(42), nullable=False)
     message_hash = Column(String(66), nullable=False)
 
@@ -59,6 +64,7 @@ class OmnibridgeSignedForAffirmation(Base):
     id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     signer = Column(String(42), nullable=False)
     message_hash = Column(String(66), nullable=True)
     src_transaction_hash = Column(String(66), nullable=True)
@@ -72,6 +78,7 @@ class OmnibridgeUserRequestForSignature(Base):
     id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     message_id = Column(String(66), nullable=True)
     encoded_data = Column(String(1000), nullable=True)
     encoded_data_hash = Column(String(66), nullable=True)
@@ -86,6 +93,7 @@ class OmnibridgeAffirmationCompleted(Base):
     id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     recipient = Column(String(42), nullable=False)
     value = Column(Numeric(30, 0), nullable=False)
     src_transaction_hash = Column(String(66), nullable=False)
@@ -99,6 +107,7 @@ class OmnibridgeUserRequestForAffirmation(Base):
     id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     message_id = Column(String(66), nullable=True)
     encoded_data = Column(String(1000), nullable=True)
     recipient = Column(String(42), nullable=True)

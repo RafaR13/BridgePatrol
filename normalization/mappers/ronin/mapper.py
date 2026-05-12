@@ -1,6 +1,6 @@
 from normalization.event_types import NormalizedEventType
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
-from normalization.common.utils import to_json, to_str
+from normalization.common.utils import event_contract_address, to_json, to_str
 
 
 def map_deposit_requested(row, tx_ctx, cctx_id=None):
@@ -23,7 +23,7 @@ def map_deposit_requested(row, tx_ctx, cctx_id=None):
         token_out=row.output_token,
         amount_in=row.amount,
         amount_out=row.amount,
-        contract_address=tx_ctx.to_address if tx_ctx else None,
+        contract_address=event_contract_address(row, tx_ctx),
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=to_json(
             {
@@ -52,7 +52,7 @@ def map_token_deposited(row, tx_ctx, cctx_id=None):
         token_out=row.output_token,
         amount_in=row.amount,
         amount_out=row.amount,
-        contract_address=tx_ctx.to_address if tx_ctx else None,
+        contract_address=event_contract_address(row, tx_ctx),
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=to_json(
             {
@@ -83,7 +83,7 @@ def map_withdrawal_requested(row, tx_ctx, cctx_id=None):
         token_out=row.output_token,
         amount_in=row.amount,
         amount_out=row.amount,
-        contract_address=tx_ctx.to_address if tx_ctx else None,
+        contract_address=event_contract_address(row, tx_ctx),
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=to_json(
             {
@@ -114,7 +114,7 @@ def map_token_withdrew(row, tx_ctx, cctx_id=None):
         token_out=row.output_token,
         amount_in=row.amount,
         amount_out=row.amount,
-        contract_address=tx_ctx.to_address if tx_ctx else None,
+        contract_address=event_contract_address(row, tx_ctx),
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=to_json(
             {

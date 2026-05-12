@@ -10,6 +10,7 @@ class AcrossRelayerRefund(Base):
     id = Column(Integer, nullable=False, autoincrement=True, primary_key=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     root_bundle_id = Column(Integer, nullable=False)
     amount_to_return = Column(Numeric(30, 0), nullable=False)
     refund_amount = Column(Numeric(30, 0), nullable=False)
@@ -23,6 +24,7 @@ class AcrossFilledRelay(Base):
 
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     src_chain = Column(String(10), nullable=False)
     deposit_id = Column(String(78), nullable=False, primary_key=True)
     relayer = Column(String(42), nullable=False)
@@ -48,6 +50,7 @@ class AcrossFundsDeposited(Base):
 
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(66), nullable=False)
+    address = Column(String(128), nullable=True)
     destination_chain = Column(String(24), nullable=False)
     deposit_id = Column(String(78), nullable=False, primary_key=True)
     depositor = Column(String(42), nullable=False)
@@ -65,6 +68,7 @@ class AcrossFundsDeposited(Base):
 
 class AcrossBlockchainTransactions(BlockchainTransaction):
     __tablename__ = "across_blockchain_transactions"
+
 
 class AcrossCrossChainTransactions(Base):
     __tablename__ = "across_cross_chain_transactions"

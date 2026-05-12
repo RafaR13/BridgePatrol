@@ -13,6 +13,7 @@ from normalization.event_types import NormalizedEventType
 from signature_detection.constants import (
     BRIDGE_EVENT_MAP,
     TIME_THRESHOLDS,
+    VERIFIED_CONTRACTS,
     BlockConfirmationThresholds,
     AlertSeverity,
     EventPairFlow,
@@ -179,6 +180,20 @@ class Analyser(ABC):
         alerts.extend(self.amount_mismatch(self.bridge))
         return alerts
 
+    def analyse_contract_authorization_signatures(self) -> List[DetectionAlert]:
+        """Run contract allowlist checks that only need normalized events."""
+        return self.unauthorized_contracts(self.bridge)
+
+    def analyse_replay_signatures(self) -> List[DetectionAlert]:
+        """Run replay checks over configured one-to-one event flows."""
+        alerts: List[DetectionAlert] = []
+
+        for flow_type in ("deposits", "withdrawals"):
+            for flow in self._configured_flows(self.bridge, flow_type):
+                alerts.extend(self.detect_replays(self.bridge, flow))
+
+        return alerts
+
     def analyse_source_destination(
         self, start_ts: int, end_ts: int
     ) -> List[DetectionAlert]:
@@ -187,6 +202,8 @@ class Analyser(ABC):
 
         alerts.extend(self.analyse_missing_pair_signatures(start_ts, end_ts))
         alerts.extend(self.analyse_event_amount_signatures())
+        alerts.extend(self.analyse_contract_authorization_signatures())
+        alerts.extend(self.analyse_replay_signatures())
         return alerts
 
     def analyse_cross_chain_transactions(self) -> List[DetectionAlert]:
@@ -204,6 +221,10 @@ class Analyser(ABC):
         """Run proof-related checks."""
         return []
 
+    def analyse_bridge_specific_signatures(self) -> List[DetectionAlert]:
+        """Run checks that only apply to this bridge."""
+        return []
+
     def analyse_all(self, start_ts: int, end_ts: int) -> List[DetectionAlert]:
         """
         Run every analyser stage and return a single alert list.
@@ -212,7 +233,108 @@ class Analyser(ABC):
         alerts.extend(self.analyse_missing_pair_signatures(start_ts, end_ts))
         alerts.extend(self.analyse_cross_chain_transactions())
         alerts.extend(self.analyse_event_amount_signatures())
+        alerts.extend(self.analyse_contract_authorization_signatures())
+        alerts.extend(self.analyse_replay_signatures())
         alerts.extend(self.analyse_proofs())
+        alerts.extend(self.analyse_bridge_specific_signatures())
+        return alerts
+
+    def _event_type_value(self, event_type) -> str:
+        return getattr(event_type, "value", str(event_type))
+
+    def _verified_contracts_for_event(
+        self,
+        bridge: str,
+        flow: EventPairFlow,
+        event: NormalizedEvent,
+    ) -> set[str]:
+        bridge_contracts = VERIFIED_CONTRACTS.get(bridge, {})
+        flow_contracts = bridge_contracts.get(flow.name, {})
+        event_type = self._event_type_value(event.event_type)
+
+        for configured_event_type, contracts in flow_contracts.items():
+            if self._event_type_value(configured_event_type) == event_type:
+                return {contract.lower() for contract in contracts}
+
+        return set()
+
+    def _contract_is_verified(
+        self,
+        event: NormalizedEvent,
+        verified_contracts: set[str],
+    ) -> bool:
+        if not verified_contracts:
+            return True
+        if not event.contract_address:
+            return False
+        return str(event.contract_address).lower() in verified_contracts
+
+    def unauthorized_contracts(self, bridge: str) -> list[DetectionAlert]:
+        alerts: list[DetectionAlert] = []
+        seen_alerts: set[tuple[str, int | None, str, str]] = set()
+
+        for flow_type in ("deposits", "withdrawals"):
+            for flow in self._configured_flows(bridge, flow_type):
+                grouped_events = self.fetch_event_pairs(bridge, flow)
+
+                for correlation_id, events in grouped_events.items():
+                    destination_exists = bool(events["destination"])
+
+                    for side in ("source", "destination"):
+                        for event in events[side]:
+                            verified_contracts = self._verified_contracts_for_event(
+                                bridge, flow, event
+                            )
+                            if not verified_contracts:
+                                continue
+                            if self._contract_is_verified(event, verified_contracts):
+                                continue
+
+                            alert_key = (flow.name, event.id, side, correlation_id)
+                            if alert_key in seen_alerts:
+                                continue
+                            seen_alerts.add(alert_key)
+
+                            is_untrusted_source_consumed = (
+                                side == "source" and destination_exists
+                            )
+                            severity = (
+                                AlertSeverity.CRITICAL
+                                if is_untrusted_source_consumed
+                                else AlertSeverity.HIGH
+                            )
+                            expected_contracts = ", ".join(sorted(verified_contracts))
+                            actual_contract = event.contract_address or "<missing>"
+                            source_event_id = event.id if side == "source" else None
+                            destination_event_id = event.id if side == "destination" else None
+
+                            title_suffix = (
+                                "destination event was paired with an unauthorized source contract"
+                                if is_untrusted_source_consumed
+                                else "event emitted by unauthorized contract"
+                            )
+
+                            alerts.append(
+                                self.create_detection_alert(
+                                    signature_type=SignatureType.UNAUTHORIZED_CONTRACT,
+                                    severity=severity,
+                                    bridge=bridge,
+                                    correlation_id=correlation_id,
+                                    correlation_type=flow.name,
+                                    src_event_id=source_event_id,
+                                    dst_event_id=destination_event_id,
+                                    title=f"{bridge}: {title_suffix}",
+                                    description=(
+                                        f"Found {side} event {event.event_type} with "
+                                        f"contract_address={actual_contract} for "
+                                        f"correlation_id={correlation_id}. "
+                                        f"Flow={flow.name}; expected one of: {expected_contracts}."
+                                    ),
+                                    created_at_ts=event.timestamp,
+                                    probability="TODO",
+                                )
+                            )
+
         return alerts
 
     def lock_without_mint(
@@ -559,9 +681,25 @@ class Analyser(ABC):
         return alerts
 
     def detect_replays(
-        self, bridge: str, source: NormalizedEventType, destination: NormalizedEventType
+        self,
+        bridge: str,
+        flow_or_source: EventPairFlow | NormalizedEventType,
+        destination: NormalizedEventType | None = None,
     ) -> list[DetectionAlert]:
-        grouped_events = self.fetch_event_pairs(bridge, source, destination)
+        if isinstance(flow_or_source, EventPairFlow):
+            flow = flow_or_source
+        else:
+            if destination is None:
+                raise ValueError(
+                    "destination is required when detect_replays is called with event types"
+                )
+            flow = EventPairFlow(
+                name="ad_hoc",
+                source=flow_or_source,
+                destination=destination,
+            )
+
+        grouped_events = self.fetch_event_pairs(bridge, flow)
         alerts: list[DetectionAlert] = []
 
         def _safe_get(event: NormalizedEvent, *names):
@@ -594,8 +732,18 @@ class Analyser(ABC):
             )
 
         for correlation_id, events in grouped_events.items():
-            source_events = events["source"]
-            destination_events = events["destination"]
+            source_events = [
+                event
+                for event in events["source"]
+                if self._event_type_value(event.event_type)
+                == self._event_type_value(flow.source)
+            ]
+            destination_events = [
+                event
+                for event in events["destination"]
+                if self._event_type_value(event.event_type)
+                == self._event_type_value(flow.destination)
+            ]
 
             if not source_events or len(destination_events) <= 1:
                 continue
@@ -626,7 +774,7 @@ class Analyser(ABC):
                             severity=AlertSeverity.MEDIUM,
                             bridge=bridge,
                             correlation_id=correlation_id,
-                            correlation_type=None,
+                            correlation_type=flow.name,
                             src_event_id=source_event.id,
                             dst_event_id=dst_event.id,
                             title=f"{bridge}: Same lock/burn event caused multiple destination events on different transactions",
@@ -651,7 +799,7 @@ class Analyser(ABC):
                             severity=AlertSeverity.LOW,
                             bridge=bridge,
                             correlation_id=correlation_id,
-                            correlation_type=None,
+                            correlation_type=flow.name,
                             src_event_id=source_event.id,
                             dst_event_id=dst_event.id,
                             title=f"{bridge}: inconsistent replay payload detected",
@@ -680,7 +828,7 @@ class Analyser(ABC):
                             severity=AlertSeverity.LOW,
                             bridge=bridge,
                             correlation_id=correlation_id,
-                            correlation_type=None,
+                            correlation_type=flow.name,
                             src_event_id=source_event.id,
                             dst_event_id=dst_event.id,
                             title=f"{bridge}: duplicate destination event for same correlation_id",

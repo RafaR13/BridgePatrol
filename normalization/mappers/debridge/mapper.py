@@ -1,6 +1,6 @@
 from normalization.event_types import NormalizedEventType
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
-from normalization.common.utils import to_json
+from normalization.common.utils import event_contract_address, to_json
 
 
 def map_debridge_created_order(row, tx_ctx, cctx_id=None):
@@ -23,7 +23,7 @@ def map_debridge_created_order(row, tx_ctx, cctx_id=None):
         token_out=row.take_token_address,
         amount_in=row.give_amount,
         amount_out=row.take_amount,
-        contract_address=tx_ctx.to_address if tx_ctx else None,
+        contract_address=event_contract_address(row, tx_ctx),
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=to_json(
             {
@@ -65,7 +65,7 @@ def map_debridge_fulfilled_order(row, tx_ctx, cctx_id=None):
         token_out=row.take_token_address,
         amount_in=row.give_amount,
         amount_out=row.take_amount,
-        contract_address=tx_ctx.to_address if tx_ctx else None,
+        contract_address=event_contract_address(row, tx_ctx),
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=to_json(
             {
@@ -104,7 +104,7 @@ def map_debridge_claimed_unlock(row, tx_ctx, cctx_id=None):
         token_out=row.give_token_address,
         amount_in=row.give_amount,
         amount_out=row.give_amount,
-        contract_address=tx_ctx.to_address if tx_ctx else None,
+        contract_address=event_contract_address(row, tx_ctx),
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=to_json(
             {

@@ -1,5 +1,6 @@
 from normalization.event_types import NormalizedEventType
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
+from normalization.common.utils import event_contract_address
 
 
 def map_deposit_for_burn(row, tx_ctx, cctx_id=None):
@@ -22,7 +23,7 @@ def map_deposit_for_burn(row, tx_ctx, cctx_id=None):
         token_out=row.burn_token,
         amount_in=row.amount,
         amount_out=row.amount,
-        contract_address=tx_ctx.to_address if tx_ctx else None,
+        contract_address=event_contract_address(row, tx_ctx),
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=None,
     )
@@ -48,7 +49,7 @@ def map_message_received(row, tx_ctx, cctx_id=None):
         token_out=row.input_token,
         amount_in=row.amount,
         amount_out=row.amount,
-        contract_address=tx_ctx.to_address if tx_ctx else None,
+        contract_address=event_contract_address(row, tx_ctx),
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=None,
     )

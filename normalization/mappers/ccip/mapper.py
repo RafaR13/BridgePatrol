@@ -1,6 +1,6 @@
 from normalization.event_types import NormalizedEventType
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
-from normalization.common.utils import to_json
+from normalization.common.utils import event_contract_address, to_json
 
 
 def map_ccip_send_requested(row, tx_ctx, cctx_id=None):
@@ -25,7 +25,7 @@ def map_ccip_send_requested(row, tx_ctx, cctx_id=None):
         amount_out=row.amount,
         nonce=str(row.nonce),
         message_id=row.message_id,
-        contract_address=tx_ctx.to_address if tx_ctx else None,
+        contract_address=event_contract_address(row, tx_ctx),
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=to_json(
             {
@@ -61,7 +61,7 @@ def map_ccip_execution_state_changed(row, tx_ctx, cctx_id=None):
         amount_out=None,
         nonce=None,
         message_id=row.message_id,
-        contract_address=tx_ctx.to_address if tx_ctx else None,
+        contract_address=event_contract_address(row, tx_ctx),
         status=str(tx_ctx.status) if tx_ctx else None,
         extra_data=to_json(
             {
