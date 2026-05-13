@@ -24,14 +24,49 @@ from signature_detection.constants import (
 class Analyser(ABC):
     def __init__(self, bridge: str):
         self.bridge = bridge
+        self._transaction_context: tuple[dict[str, int], dict[str, int]] | None = None
+
+    @abstractmethod
+    def fetch_blockchain_transactions(self):
+        pass
+
+    @abstractmethod
+    def analyse_bridge_specific_signatures(self) -> List[DetectionAlert]:
+        """Run checks that only apply to this bridge."""
+        pass
+
+    def analyse_all(self, start_ts: int, end_ts: int) -> List[DetectionAlert]:
+        """
+        Run every configured analyser check and return a single alert list.
+        """
+        alerts: List[DetectionAlert] = []
+
+        # Missing event pairs
+        alerts.extend(self.lock_without_mint(self.bridge, start_ts, end_ts))
+        alerts.extend(self.mint_without_lock(self.bridge, start_ts, end_ts))
+
+        # Tokens
+        alerts.extend(self.amount_mismatch(self.bridge))
+        alerts.extend(self.over_mint(self.bridge))
+        alerts.extend(self.over_release(self.bridge))
+
+        # Contract authorization
+        alerts.extend(self.unauthorized_contracts(self.bridge))
+
+        # Replay / duplicate execution
+        for flow_type in ("deposits", "withdrawals"):
+            for flow in self._configured_flows(self.bridge, flow_type):
+                alerts.extend(self.detect_replays(self.bridge, flow))
+
+        # Bridge-specific checks
+        alerts.extend(self.analyse_bridge_specific_signatures())
+        return alerts
 
     def pick_first(self, events: list[NormalizedEvent]) -> NormalizedEvent | None:
         """Helper function to pick the first event from a list, or return None if the list is empty."""
         return events[0] if events else None
 
-    def _configured_flows(
-        self, bridge: str, flow_type: str
-    ) -> tuple[EventPairFlow, ...]:
+    def _configured_flows(self, bridge: str, flow_type: str) -> tuple[EventPairFlow, ...]:
         config = BRIDGE_EVENT_MAP.get(bridge)
         if config is None:
             return ()
@@ -49,9 +84,7 @@ class Analyser(ABC):
             return extra_data.get(key)
         return getattr(event, field_path, None)
 
-    def _event_group_key(
-        self, event: NormalizedEvent, fields: tuple[str, ...]
-    ) -> str | None:
+    def _event_group_key(self, event: NormalizedEvent, fields: tuple[str, ...]) -> str | None:
         values = [self._event_value(event, field) for field in fields]
         if any(value is None for value in values):
             return None
@@ -79,9 +112,7 @@ class Analyser(ABC):
                 destination=destination,
             )
 
-        source_events = NormalizedEventRepository.get_events_by_event_type(
-            flow.source, bridge
-        )
+        source_events = NormalizedEventRepository.get_events_by_event_type(flow.source, bridge)
         destination_events = NormalizedEventRepository.get_events_by_event_type(
             flow.destination, bridge
         )
@@ -127,14 +158,6 @@ class Analyser(ABC):
 
         return grouped_events
 
-    @abstractmethod
-    def fetch_blockchain_transactions(self):
-        pass
-
-    @abstractmethod
-    def fetch_crosschain_transactions(self):
-        pass
-
     def create_detection_alert(
         self,
         signature_type: SignatureType,
@@ -163,82 +186,6 @@ class Analyser(ABC):
             probability=probability,
         )
 
-    def analyse_missing_pair_signatures(
-        self, start_ts: int, end_ts: int
-    ) -> List[DetectionAlert]:
-        """Run missing source/destination checks using configured event pairs."""
-        alerts: List[DetectionAlert] = []
-
-        alerts.extend(self.lock_without_mint(self.bridge, start_ts, end_ts))
-        alerts.extend(self.mint_without_lock(self.bridge, start_ts, end_ts))
-        return alerts
-
-    def analyse_event_amount_signatures(self) -> List[DetectionAlert]:
-        """Run amount checks that only need normalized events."""
-        alerts: List[DetectionAlert] = []
-
-        alerts.extend(self.amount_mismatch(self.bridge))
-        return alerts
-
-    def analyse_contract_authorization_signatures(self) -> List[DetectionAlert]:
-        """Run contract allowlist checks that only need normalized events."""
-        return self.unauthorized_contracts(self.bridge)
-
-    def analyse_replay_signatures(self) -> List[DetectionAlert]:
-        """Run replay checks over configured one-to-one event flows."""
-        alerts: List[DetectionAlert] = []
-
-        for flow_type in ("deposits", "withdrawals"):
-            for flow in self._configured_flows(self.bridge, flow_type):
-                alerts.extend(self.detect_replays(self.bridge, flow))
-
-        return alerts
-
-    def analyse_source_destination(
-        self, start_ts: int, end_ts: int
-    ) -> List[DetectionAlert]:
-        """Run all event-only source/destination checks."""
-        alerts: List[DetectionAlert] = []
-
-        alerts.extend(self.analyse_missing_pair_signatures(start_ts, end_ts))
-        alerts.extend(self.analyse_event_amount_signatures())
-        alerts.extend(self.analyse_contract_authorization_signatures())
-        alerts.extend(self.analyse_replay_signatures())
-        return alerts
-
-    def analyse_cross_chain_transactions(self) -> List[DetectionAlert]:
-        """Run checks that use XChainDataGen cross-chain transactions."""
-        crosschain_txs = self.fetch_crosschain_transactions()
-        return self.analyse_cross_chain_transaction_records(crosschain_txs)
-
-    def analyse_cross_chain_transaction_records(
-        self, crosschain_txs
-    ) -> List[DetectionAlert]:
-        """Analyse already-fetched XChainDataGen cross-chain transaction rows."""
-        return []
-
-    def analyse_proofs(self) -> List[DetectionAlert]:
-        """Run proof-related checks."""
-        return []
-
-    def analyse_bridge_specific_signatures(self) -> List[DetectionAlert]:
-        """Run checks that only apply to this bridge."""
-        return []
-
-    def analyse_all(self, start_ts: int, end_ts: int) -> List[DetectionAlert]:
-        """
-        Run every analyser stage and return a single alert list.
-        """
-        alerts: List[DetectionAlert] = []
-        alerts.extend(self.analyse_missing_pair_signatures(start_ts, end_ts))
-        alerts.extend(self.analyse_cross_chain_transactions())
-        alerts.extend(self.analyse_event_amount_signatures())
-        alerts.extend(self.analyse_contract_authorization_signatures())
-        alerts.extend(self.analyse_replay_signatures())
-        alerts.extend(self.analyse_proofs())
-        alerts.extend(self.analyse_bridge_specific_signatures())
-        return alerts
-
     def _event_type_value(self, event_type) -> str:
         return getattr(event_type, "value", str(event_type))
 
@@ -258,11 +205,7 @@ class Analyser(ABC):
 
         return set()
 
-    def _contract_is_verified(
-        self,
-        event: NormalizedEvent,
-        verified_contracts: set[str],
-    ) -> bool:
+    def _contract_is_verified(self, event: NormalizedEvent, verified_contracts: set[str]) -> bool:
         if not verified_contracts:
             return True
         if not event.contract_address:
@@ -295,9 +238,7 @@ class Analyser(ABC):
                                 continue
                             seen_alerts.add(alert_key)
 
-                            is_untrusted_source_consumed = (
-                                side == "source" and destination_exists
-                            )
+                            is_untrusted_source_consumed = side == "source" and destination_exists
                             severity = (
                                 AlertSeverity.CRITICAL
                                 if is_untrusted_source_consumed
@@ -337,18 +278,9 @@ class Analyser(ABC):
 
         return alerts
 
-    def lock_without_mint(
-        self, bridge: str, start_ts: int, end_ts: int
-    ) -> list[DetectionAlert]:
-        """lock event without a corresponding mint event"""
-        # TODO: check if proof was sent but no mint occured
-        alerts = []
-
-        time_threshold = TIME_THRESHOLDS.get(bridge, 3600)
-        number_of_blocks_to_confirm = BlockConfirmationThresholds.get(bridge, 12)
-        latest_block_number = (
-            67  # TODO: call XChainDataGen to get latest block number for the chain
-        )
+    def _blockchain_transaction_context(self) -> tuple[dict[str, int], dict[str, int]]:
+        if self._transaction_context is not None:
+            return self._transaction_context
 
         blockchain_transactions = self.fetch_blockchain_transactions()
         tx_block_numbers = {
@@ -361,6 +293,33 @@ class Analyser(ABC):
             for tx in blockchain_transactions
             if tx.transaction_hash is not None and tx.timestamp is not None
         }
+        self._transaction_context = (tx_block_numbers, tx_timestamps)
+        return self._transaction_context
+
+    def _event_is_recent(
+        self, bridge: str, end_ts: int, event_timestamp: int | None, event_block_number: int | None
+    ) -> bool:
+        time_threshold = TIME_THRESHOLDS.get(bridge, 3600)
+        number_of_blocks_to_confirm = BlockConfirmationThresholds.get(bridge, 12)
+        latest_block_number = NormalizedEventRepository.get_latest_block_number_by_bridge(bridge)
+
+        is_recent_block = (
+            latest_block_number is not None
+            and event_block_number is not None
+            and event_block_number <= latest_block_number
+            and latest_block_number - event_block_number <= number_of_blocks_to_confirm
+        )
+        event_age = end_ts - event_timestamp if event_timestamp is not None else None
+        event_is_within_time_threshold = event_age is not None and event_age < time_threshold
+
+        return is_recent_block or event_is_within_time_threshold
+
+    def lock_without_mint(self, bridge: str, start_ts: int, end_ts: int) -> list[DetectionAlert]:
+        """lock event without a corresponding mint event"""
+        # TODO: check if proof was sent but no mint occured
+        alerts = []
+
+        tx_block_numbers, tx_timestamps = self._blockchain_transaction_context()
 
         for flow in self._configured_flows(bridge, "deposits"):
             grouped_events = self.fetch_event_pairs(bridge, flow)
@@ -379,24 +338,14 @@ class Analyser(ABC):
                 event_block_number = tx_block_numbers.get(
                     lock_event.transaction_hash, lock_event.block_number
                 )
-                event_age = (
-                    end_ts - event_timestamp if event_timestamp is not None else None
-                )
-
-                # block is recent if it is close enough to the latest block (depending on each chain's threshold)
-                is_recent_block = (
-                    latest_block_number is not None
-                    and event_block_number is not None
-                    and latest_block_number - event_block_number
-                    <= number_of_blocks_to_confirm
-                )
-                event_is_within_time_threshold = (
-                    event_age is not None and event_age < time_threshold
-                )
-
                 severity = AlertSeverity.MEDIUM
                 description_suffix = "No matching mint event was observed."
-                if is_recent_block or event_is_within_time_threshold:
+                if self._event_is_recent(
+                    bridge,
+                    end_ts,
+                    event_timestamp,
+                    event_block_number,
+                ):
                     severity = AlertSeverity.LOW
                     description_suffix = "No matching mint event was observed yet, but the lock is still within the expected processing window."
 
@@ -416,35 +365,16 @@ class Analyser(ABC):
                             f"{description_suffix}"
                         ),
                         created_at_ts=(
-                            event_timestamp
-                            if event_timestamp is not None
-                            else lock_event.timestamp
+                            event_timestamp if event_timestamp is not None else lock_event.timestamp
                         ),
                         probability="TODO",
                     )
                 )
         return alerts
 
-    def mint_without_lock(
-        self, bridge: str, start_ts: int, end_ts: int
-    ) -> list[DetectionAlert]:
+    def mint_without_lock(self, bridge: str, start_ts: int, end_ts: int) -> list[DetectionAlert]:
         alerts = []
-        time_threshold = TIME_THRESHOLDS.get(bridge, 3600)
-        number_of_blocks_to_confirm = BlockConfirmationThresholds.get(bridge, 12)
-        blockchain_transactions = self.fetch_blockchain_transactions()
-        tx_block_numbers = {
-            tx.transaction_hash: tx.block_number
-            for tx in blockchain_transactions
-            if tx.transaction_hash is not None and tx.block_number is not None
-        }
-        tx_timestamps = {
-            tx.transaction_hash: tx.timestamp
-            for tx in blockchain_transactions
-            if tx.transaction_hash is not None and tx.timestamp is not None
-        }
-        latest_block_number = (
-            67  # TODO: call XChainDataGen to get latest block number for the chain
-        )
+        tx_block_numbers, tx_timestamps = self._blockchain_transaction_context()
 
         for flow in self._configured_flows(bridge, "deposits"):
             reverse_flow = EventPairFlow(
@@ -469,23 +399,14 @@ class Analyser(ABC):
                 event_block_number = tx_block_numbers.get(
                     mint_event.transaction_hash, mint_event.block_number
                 )
-                event_age = (
-                    end_ts - event_timestamp if event_timestamp is not None else None
-                )
-
-                is_recent_block = (
-                    latest_block_number is not None
-                    and event_block_number is not None
-                    and latest_block_number - event_block_number
-                    <= number_of_blocks_to_confirm
-                )
-                event_is_within_time_threshold = (
-                    event_age is not None and event_age < time_threshold
-                )
-
                 severity = AlertSeverity.HIGH
                 description_suffix = "No matching lock event was observed."
-                if is_recent_block or event_is_within_time_threshold:
+                if self._event_is_recent(
+                    bridge,
+                    end_ts,
+                    event_timestamp,
+                    event_block_number,
+                ):
                     severity = AlertSeverity.MEDIUM
                     description_suffix = "No matching lock event was observed yet, but the mint is still within the expected processing window."
 
@@ -505,18 +426,14 @@ class Analyser(ABC):
                             f"{description_suffix}"
                         ),
                         created_at_ts=(
-                            event_timestamp
-                            if event_timestamp is not None
-                            else mint_event.timestamp
+                            event_timestamp if event_timestamp is not None else mint_event.timestamp
                         ),
                         probability="TODO",
                     )
                 )
         return alerts
 
-    def _pick_amount_event(
-        self, events: list[NormalizedEvent]
-    ) -> NormalizedEvent | None:
+    def _pick_amount_event(self, events: list[NormalizedEvent]) -> NormalizedEvent | None:
         for event in events:
             if event.amount_out is not None or event.amount_in is not None:
                 return event
@@ -735,8 +652,7 @@ class Analyser(ABC):
             source_events = [
                 event
                 for event in events["source"]
-                if self._event_type_value(event.event_type)
-                == self._event_type_value(flow.source)
+                if self._event_type_value(event.event_type) == self._event_type_value(flow.source)
             ]
             destination_events = [
                 event
@@ -760,9 +676,7 @@ class Analyser(ABC):
             }
 
             # Distinct logical payloads on the destination side
-            dst_fingerprints = {
-                _event_fingerprint(event) for event in destination_events
-            }
+            dst_fingerprints = {_event_fingerprint(event) for event in destination_events}
 
             # Case 1:
             # same correlation_id caused multiple executions on different destination txs

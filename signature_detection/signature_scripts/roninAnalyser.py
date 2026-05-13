@@ -7,9 +7,6 @@ from typing import List
 from db.repository.blockchain_transactions.blockchain_transactions_repository import (
     RoninBlockchainTransactionRepository,
 )
-from db.repository.cross_chain_transactions.cross_chain_transactions_repository import (
-    RoninCrossChainTransactionRepository,
-)
 
 from .analyser import Analyser
 from db.repository.detection_alert.detection_alert_model import DetectionAlert
@@ -31,9 +28,6 @@ class RoninAnalyser(Analyser):
     def fetch_blockchain_transactions_with_receipts_with_signatures(self):
         return RoninBlockchainTransactionRepository.get_transactions_with_receipt_with_signatures()
 
-    def fetch_crosschain_transactions(self):
-        return RoninCrossChainTransactionRepository.get_all()
-
     def analyse_bridge_specific_signatures(self) -> List[DetectionAlert]:
         alerts = []
         alerts.extend(self.contract_discrepancies())
@@ -46,12 +40,15 @@ class RoninAnalyser(Analyser):
         return str(value).lower()
 
     def _receipt_key(self, receipt) -> tuple:
+        info = receipt.get("info") or {}
+        ronin = receipt.get("ronin") or {}
+        mainchain = receipt.get("mainchain") or {}
         return (
             receipt.get("id"),
             receipt.get("kind"),
-            receipt.get("info", {}).get("quantity"),
-            receipt.get("ronin", {}).get("addr"),
-            receipt.get("mainchain", {}).get("addr"),
+            info.get("quantity") if isinstance(info, dict) else None,
+            ronin.get("addr") if isinstance(ronin, dict) else None,
+            mainchain.get("addr") if isinstance(mainchain, dict) else None,
         )
 
     def _receipt_correlation_id(self, receipt_key: tuple) -> str:
@@ -94,15 +91,15 @@ class RoninAnalyser(Analyser):
                         continue
 
                     mismatches = []
-                    if self._normalized_value(source_event.token_in) != self._normalized_value(
-                        destination_event.token_in
-                    ):
+                    source_token_in = self._normalized_value(source_event.token_in)
+                    destination_token_in = self._normalized_value(destination_event.token_in)
+                    if source_token_in != destination_token_in:
                         mismatches.append(
                             f"token_in source={source_event.token_in} destination={destination_event.token_in}"
                         )
-                    if self._normalized_value(source_event.token_out) != self._normalized_value(
-                        destination_event.token_out
-                    ):
+                    source_token_out = self._normalized_value(source_event.token_out)
+                    destination_token_out = self._normalized_value(destination_event.token_out)
+                    if source_token_out != destination_token_out:
                         mismatches.append(
                             f"token_out source={source_event.token_out} destination={destination_event.token_out}"
                         )
@@ -124,8 +121,7 @@ class RoninAnalyser(Analyser):
                                 f"Found Ronin {flow.name} pair with inconsistent token contracts "
                                 f"for correlation_id={correlation_id}: {'; '.join(mismatches)}."
                             ),
-                            created_at_ts=destination_event.timestamp
-                            or source_event.timestamp,
+                            created_at_ts=destination_event.timestamp or source_event.timestamp,
                             probability="TODO",
                         )
                     )
@@ -144,6 +140,8 @@ class RoninAnalyser(Analyser):
             sigs = decoded_input.get("_signatures") or []
             if not isinstance(receipt, dict):
                 continue
+            if not isinstance(sigs, list):
+                sigs = []
 
             receipt_key = self._receipt_key(receipt)
             correlation_id = self._receipt_correlation_id(receipt_key)
@@ -203,9 +201,7 @@ class RoninAnalyser(Analyser):
         for receipt_key, txs in receipts.items():
             if len(txs) > 1:
                 tx_hashes = sorted(
-                    tx.transaction_hash
-                    for tx in txs
-                    if tx.transaction_hash is not None
+                    tx.transaction_hash for tx in txs if tx.transaction_hash is not None
                 )
                 correlation_id = self._receipt_correlation_id(receipt_key)
                 for tx in txs:

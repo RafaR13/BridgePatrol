@@ -1,4 +1,13 @@
-from sqlalchemy import BigInteger, Boolean, Column, Float, Integer, Numeric, String
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    Integer,
+    Numeric,
+    String,
+)
 
 from db.repository.common_models import BlockchainTransaction
 from db.database import Base
@@ -116,6 +125,14 @@ class PolygonChildTokenBurn(Base):
     from_address = Column(String(42), nullable=False)
     amount = Column(Numeric(30, 0), nullable=False)
     root_token = Column(String(42), nullable=False)
+
+
+class PolygonTokenMapping(Base):
+    __tablename__ = "polygon_token_mappings"
+
+    root_token = Column(String(42), nullable=False, primary_key=True)
+    child_token = Column(String(42), nullable=True)
+    checked_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class PolygonBlockchainTransactions(BlockchainTransaction):
