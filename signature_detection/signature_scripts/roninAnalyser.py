@@ -7,6 +7,13 @@ from typing import List
 from db.repository.blockchain_transactions.blockchain_transactions_repository import (
     RoninBlockchainTransactionRepository,
 )
+from db.repository.normalized_event.normalized_event_repository import (
+    NormalizedEventRepository,
+)
+from db.repository.transfer_events.transfer_events_repository import (
+    RoninTransferRepository,
+)
+from normalization.event_types import NormalizedEventType
 
 from .analyser import Analyser
 from db.repository.detection_alert.detection_alert_model import DetectionAlert
@@ -19,6 +26,10 @@ RONIN_SIGNATURE_THRESHOLD = 16
 
 
 class RoninAnalyser(Analyser):
+    RONIN_NATIVE_TOKEN = "TODO"
+    RONIN_MAINCHAIN_GATEWAY_CONTRACT = "0x64192819ac13ef72bf6b5ae239ac672b43a9af08"
+    RONIN_GATEWAY_CONTRACT = "0x0cf8ff40a508bdbc39fbe1bb679dcba64e65c7df"
+
     def __init__(self):
         super().__init__("ronin")
 
@@ -32,6 +43,7 @@ class RoninAnalyser(Analyser):
         alerts = []
         alerts.extend(self.contract_discrepancies())
         alerts.extend(self.analyse_ronin_proofs())
+        alerts.extend(self.token_contract_attacks())
         return alerts
 
     def _normalized_value(self, value):
@@ -77,7 +89,9 @@ class RoninAnalyser(Analyser):
             return {}
         return decoded_input
 
+    # contract mismatch attacks:
     def contract_discrepancies(self) -> List[DetectionAlert]:
+        """Detect discrepancies in contract addresses between paired events of the same flow."""
         alerts = []
 
         for flow_type in ("deposits", "withdrawals"):
@@ -128,6 +142,7 @@ class RoninAnalyser(Analyser):
 
         return alerts
 
+    # proof signature attacks:
     def analyse_ronin_proofs(self) -> List[DetectionAlert]:
         alerts = []
 
@@ -225,3 +240,162 @@ class RoninAnalyser(Analyser):
                     )
 
         return alerts
+
+    # token contract attacks:
+    def _check_ronin_native_token(self, event, tx, expected_contract) -> list[str]:
+        """token contract checks regarding native tokens"""
+        invalid_fields = []
+
+        # 1) verificar se o "value" da transação é o mesmo do receipt.quantity
+        if tx is None or tx.value != event.amount_in:
+            invalid_fields.append(
+                "1) tx.value does not match requested amount "
+                f"(tx.value={getattr(tx, 'value', '<missing>')}, amount={event.amount_in})"
+            )
+
+        # 2) verificar se o receipt tokenAddr é o contract oficial da bridge
+        if str(event.contract_address).lower() != expected_contract:
+            invalid_fields.append(
+                "2) event contract is not the official Ronin bridge "
+                f"(contract={event.contract_address or '<missing>'}, expected={expected_contract})"
+            )
+
+        # 3) verificar se o status é success
+        if str(event.status) != "1":
+            invalid_fields.append(
+                f"3) transaction status is not success (status={event.status or '<missing>'})"
+            )
+
+        return invalid_fields
+
+    def _check_ronin_erc20_token(self, event, transfers) -> list[str]:
+        """token contract checks regarding ERC20 tokens"""
+        invalid_fields = []
+
+        # 0) Verificar se houve transfer event nesta transação
+        if not transfers:
+            return ["0) no ERC20 Transfer event found in the request transaction"]
+
+        matching_transfers = [
+            transfer
+            for transfer in transfers
+            if str(transfer.token_address).lower() == str(event.token_in).lower()
+            and str(transfer.to_address).lower() == str(event.contract_address).lower()
+            and str(transfer.from_address).lower() == str(event.actor_from).lower()
+            and transfer.amount == event.amount_in
+        ]
+        if matching_transfers:
+            return invalid_fields
+
+        token_transfers = [
+            transfer
+            for transfer in transfers
+            if str(transfer.token_address).lower() == str(event.token_in).lower()
+        ]
+
+        # 1) verificar se o transfer.to é o address do token
+        if not any(
+            str(transfer.to_address).lower() == str(event.contract_address).lower()
+            for transfer in token_transfers
+        ):
+            invalid_fields.append(
+                "1) no token Transfer to the request contract "
+                f"(expected_to={event.contract_address or '<missing>'})"
+            )
+
+        # 2) verificar se o transfer.from é quem fez o request
+        if not any(
+            str(transfer.from_address).lower() == str(event.actor_from).lower()
+            for transfer in token_transfers
+        ):
+            invalid_fields.append(
+                "2) no token Transfer from the request actor "
+                f"(expected_from={event.actor_from or '<missing>'})"
+            )
+
+        # 3) verificar se transfer.value é igual ao receipt.info.quantity
+        if not any(transfer.amount == event.amount_in for transfer in token_transfers):
+            invalid_fields.append(
+                "3) no token Transfer amount matches the request amount "
+                f"(expected_amount={event.amount_in})"
+            )
+
+        if not invalid_fields:
+            invalid_fields.append("1) 2) 3) no single token Transfer matches all request checks")
+
+        return invalid_fields
+
+    '''
+    def token_contract_attacks(self) -> list[DetectionAlert]:
+        alerts: list[DetectionAlert] = []
+
+        # 1 - fetch lock/burn events - DepositRequested and WithdrawalRequested for now, and corresponding transaction
+        events = []
+        events.extend(
+            NormalizedEventRepository.get_events_by_event_type(
+                NormalizedEventType.DEPOSIT_REQUESTED,
+                self.bridge,
+            )
+        )
+        events.extend(
+            NormalizedEventRepository.get_events_by_event_type(
+                NormalizedEventType.WITHDRAWAL_REQUESTED,
+                self.bridge,
+            )
+        )
+        txs_by_hash = {
+            tx.transaction_hash: tx
+            for tx in RoninBlockchainTransactionRepository.get_all()
+            if tx.transaction_hash is not None
+        }
+        transfers_by_tx: dict[str, list] = {}
+        for transfer in RoninTransferRepository.get_all():
+            transfers_by_tx.setdefault(transfer.transaction_hash, []).append(transfer)
+
+        # 2 - for each event, check if it's native or ERC20 token
+        for event in events:
+            tx = txs_by_hash.get(event.transaction_hash)
+            expected_contract = (
+                self.RONIN_MAINCHAIN_GATEWAY_CONTRACT
+                if event.event_type == NormalizedEventType.DEPOSIT_REQUESTED
+                else self.RONIN_GATEWAY_CONTRACT
+            )
+
+            if str(event.token_in).lower() == self.RONIN_NATIVE_TOKEN.lower():
+                invalid_fields = self._check_ronin_native_token(event, tx, expected_contract)
+            else:
+                invalid_fields = self._check_ronin_erc20_token(
+                    event,
+                    transfers_by_tx.get(event.transaction_hash, []),
+                )
+                if str(event.contract_address).lower() != expected_contract:
+                    invalid_fields.append(
+                        "4) event contract is not the expected Ronin bridge "
+                        f"(contract={event.contract_address or '<missing>'}, expected={expected_contract})"
+                    )
+
+            if not invalid_fields:
+                continue
+
+            correlation_id = event.correlation_id or event.transaction_hash or str(event.raw_pk)
+            alerts.append(
+                self.create_detection_alert(
+                    signature_type=SignatureType.CONTRACT_MISMATCH,
+                    severity=AlertSeverity.HIGH,
+                    bridge=self.bridge,
+                    correlation_id=correlation_id,
+                    correlation_type="ronin_token_contract_attack",
+                    src_event_id=event.id,
+                    dst_event_id=None,
+                    title="ronin: request event failed token contract checks",
+                    description=(
+                        f"Found {event.event_type} event with correlation_id={correlation_id}. "
+                        f"Invalid token contract fields: {'; '.join(invalid_fields)}."
+                    ),
+                    created_at_ts=event.timestamp,
+                    probability="TODO",
+                )
+            )
+
+        return alerts
+    '''

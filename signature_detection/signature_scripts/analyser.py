@@ -9,16 +9,32 @@ from db.repository.normalized_event.normalized_event_model import NormalizedEven
 from db.repository.normalized_event.normalized_event_repository import (
     NormalizedEventRepository,
 )
+from db.repository.transfer_events.transfer_events_repository import (
+    CCIPTransferRepository,
+    CCTPTransferRepository,
+    PolygonTransferRepository,
+    RoninTransferRepository,
+)
 from normalization.event_types import NormalizedEventType
 from signature_detection.constants import (
     BRIDGE_EVENT_MAP,
+    TOKEN_CONTRACT_ATTACK_CONFIG,
     TIME_THRESHOLDS,
     VERIFIED_CONTRACTS,
     BlockConfirmationThresholds,
     AlertSeverity,
     EventPairFlow,
     SignatureType,
+    TokenContractAttackConfig,
 )
+
+
+TRANSFER_REPOSITORIES = {
+    "ccip": CCIPTransferRepository,
+    "cctp": CCTPTransferRepository,
+    "polygon": PolygonTransferRepository,
+    "ronin": RoninTransferRepository,
+}
 
 
 class Analyser(ABC):
@@ -757,3 +773,203 @@ class Analyser(ABC):
                     )
 
         return alerts
+
+    def token_contract_attacks(self) -> list[DetectionAlert]:
+        alerts: list[DetectionAlert] = []
+        configs = TOKEN_CONTRACT_ATTACK_CONFIG.get(self.bridge, ())
+        if not configs:
+            return alerts
+
+        txs_by_hash = {
+            tx.transaction_hash: tx
+            for tx in self.fetch_blockchain_transactions()
+            if tx.transaction_hash is not None
+        }
+
+        transfers_by_tx: dict[str, list] = {}
+        transfer_repository = TRANSFER_REPOSITORIES.get(self.bridge)
+        if transfer_repository is not None:
+            for transfer in transfer_repository.get_all():
+                transfers_by_tx.setdefault(transfer.transaction_hash, []).append(transfer)
+
+        for config in configs:
+            events = NormalizedEventRepository.get_events_by_event_type(
+                config.event_type,
+                self.bridge,
+            )
+            for event in events:
+                if event.token_in is None or event.amount_in is None:
+                    continue
+
+                tx = txs_by_hash.get(event.transaction_hash)
+                if self._is_native_token(event, config):
+                    invalid_fields = self._check_native_token_contract(event, tx, config)
+                else:
+                    invalid_fields = self._check_erc20_token_contract(
+                        event,
+                        transfers_by_tx.get(event.transaction_hash, []),
+                        config,
+                    )
+
+                if not invalid_fields:
+                    continue
+
+                correlation_id = event.correlation_id or event.transaction_hash or str(event.raw_pk)
+                alerts.append(
+                    self.create_detection_alert(
+                        signature_type=SignatureType.CONTRACT_MISMATCH,
+                        severity=AlertSeverity.HIGH,
+                        bridge=self.bridge,
+                        correlation_id=correlation_id,
+                        correlation_type=config.correlation_type,
+                        src_event_id=event.id,
+                        dst_event_id=None,
+                        title=config.title,
+                        description=(
+                            f"Found {config.event_label} event with "
+                            f"correlation_id={correlation_id}. "
+                            f"Invalid token contract fields: {'; '.join(invalid_fields)}."
+                        ),
+                        created_at_ts=event.timestamp,
+                        probability="TODO",
+                    )
+                )
+
+        return alerts
+
+    def _normalized_value(self, value):
+        if value is None:
+            return None
+        return str(value).lower()
+
+    def _is_native_token(
+        self,
+        event: NormalizedEvent,
+        config: TokenContractAttackConfig,
+    ) -> bool:
+        return self._normalized_value(event.token_in) == self._normalized_value(
+            config.native_token
+        )
+
+    def _expected_contract_values(self, config: TokenContractAttackConfig) -> set[str]:
+        return {contract.lower() for contract in config.expected_contracts}
+
+    def _check_expected_source_contract(
+        self,
+        event: NormalizedEvent,
+        config: TokenContractAttackConfig,
+        check_number: int,
+    ) -> list[str]:
+        expected_contracts = self._expected_contract_values(config)
+        if not expected_contracts:
+            return []
+
+        event_contract = self._normalized_value(event.contract_address)
+        if event_contract in expected_contracts:
+            return []
+
+        expected = ", ".join(sorted(expected_contracts))
+        return [
+            f"{check_number}) {config.event_label} contract is not an expected "
+            f"{self.bridge} source contract "
+            f"(contract={event.contract_address or '<missing>'}, expected={expected})"
+        ]
+
+    def _check_native_token_contract(
+        self,
+        event: NormalizedEvent,
+        tx,
+        config: TokenContractAttackConfig,
+    ) -> list[str]:
+        invalid_fields = []
+
+        if tx is None or tx.value != event.amount_in:
+            invalid_fields.append(
+                f"1) tx.value does not match {config.amount_label} "
+                f"(tx.value={getattr(tx, 'value', '<missing>')}, amount={event.amount_in})"
+            )
+
+        invalid_fields.extend(self._check_expected_source_contract(event, config, 2))
+
+        if str(event.status) != "1":
+            invalid_fields.append(
+                f"3) transaction status is not success (status={event.status or '<missing>'})"
+            )
+
+        return invalid_fields
+
+    def _check_erc20_token_contract(
+        self,
+        event: NormalizedEvent,
+        transfers: list,
+        config: TokenContractAttackConfig,
+    ) -> list[str]:
+        invalid_fields = []
+
+        if str(event.status) != "1":
+            invalid_fields.append(
+                f"4) transaction status is not success (status={event.status or '<missing>'})"
+            )
+
+        invalid_fields.extend(self._check_expected_source_contract(event, config, 5))
+
+        if not transfers:
+            invalid_fields.append(
+                f"0) no ERC20 Transfer event found in the {config.event_label} transaction"
+            )
+            return invalid_fields
+
+        matching_transfers = [
+            transfer
+            for transfer in transfers
+            if self._normalized_value(transfer.token_address)
+            == self._normalized_value(event.token_in)
+            and self._normalized_value(transfer.to_address)
+            == self._normalized_value(event.contract_address)
+            and self._normalized_value(transfer.from_address)
+            == self._normalized_value(event.actor_from)
+            and transfer.amount == event.amount_in
+        ]
+        if matching_transfers:
+            return invalid_fields
+
+        transfer_invalid_fields = []
+        token_transfers = [
+            transfer
+            for transfer in transfers
+            if self._normalized_value(transfer.token_address)
+            == self._normalized_value(event.token_in)
+        ]
+
+        if not any(
+            self._normalized_value(transfer.to_address)
+            == self._normalized_value(event.contract_address)
+            for transfer in token_transfers
+        ):
+            transfer_invalid_fields.append(
+                f"1) no token Transfer to the {config.event_label} contract "
+                f"(expected_to={event.contract_address or '<missing>'})"
+            )
+
+        if not any(
+            self._normalized_value(transfer.from_address)
+            == self._normalized_value(event.actor_from)
+            for transfer in token_transfers
+        ):
+            transfer_invalid_fields.append(
+                f"2) no token Transfer from the {config.actor_label} "
+                f"(expected_from={event.actor_from or '<missing>'})"
+            )
+
+        if not any(transfer.amount == event.amount_in for transfer in token_transfers):
+            transfer_invalid_fields.append(
+                f"3) no token Transfer amount matches the {config.amount_label} "
+                f"(expected_amount={event.amount_in})"
+            )
+
+        if not transfer_invalid_fields:
+            transfer_invalid_fields.append(
+                f"1) 2) 3) no single token Transfer matches all {config.event_label} checks"
+            )
+
+        return invalid_fields + transfer_invalid_fields

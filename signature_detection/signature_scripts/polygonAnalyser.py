@@ -10,6 +10,9 @@ from db.repository.normalized_event.normalized_event_repository import (
 from db.repository.polygon_token_mapping.polygon_token_mapping_repository import (
     PolygonTokenMappingRepository,
 )
+from db.repository.transfer_events.transfer_events_repository import (
+    PolygonTransferRepository,
+)
 from helpers.polygon_root_chain_manager import (
     get_root_chain_manager_contract,
     get_rpc_url,
@@ -27,6 +30,9 @@ from db.repository.detection_alert.detection_alert_model import DetectionAlert
 
 
 class PolygonAnalyser(Analyser):
+    POLYGON_NATIVE_ROOT_TOKEN = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+    POLYGON_NATIVE_BRIDGE_CONTRACT = "0x8484ef722627bf18ca5ae6bcf031c23e6e922b30"
+
     def __init__(self):
         super().__init__("polygon")
 
@@ -37,6 +43,7 @@ class PolygonAnalyser(Analyser):
         alerts = []
         alerts.extend(self.state_synced_contract_authorization())
         alerts.extend(self.token_mappings())
+        alerts.extend(self.token_contract_attacks())
         return alerts
 
     def _state_synced_payload_contract_address(self, event):
@@ -156,10 +163,15 @@ class PolygonAnalyser(Analyser):
                 mappings[normalized_root_token] = mapping
 
             expected_child_token = mapping.child_token if mapping else None
-            if expected_child_token and str(expected_child_token).lower() == str(child_token).lower():
+            if (
+                expected_child_token
+                and str(expected_child_token).lower() == str(child_token).lower()
+            ):
                 return
 
-            checked_at = mapping.checked_at.isoformat() if mapping and mapping.checked_at else "<missing>"
+            checked_at = (
+                mapping.checked_at.isoformat() if mapping and mapping.checked_at else "<missing>"
+            )
             correlation_id = event.correlation_id or str(event.raw_pk)
             alerts.append(
                 self.create_detection_alert(
@@ -198,6 +210,168 @@ class PolygonAnalyser(Analyser):
                 extra_data = json.loads(event.extra_data)
             except (TypeError, json.JSONDecodeError):
                 continue
-            add_alert(event, extra_data.get("root_token"), extra_data.get("child_token") or event.token_in)
+            add_alert(
+                event, extra_data.get("root_token"), extra_data.get("child_token") or event.token_in
+            )
 
         return alerts
+
+    # token contract attacks:
+    def _check_locked_token_native(self, event, tx) -> list[str]:
+        """token contract checks regarding native tokens"""
+        invalid_fields = []
+
+        # 1) verificar se o "value" da transação é o mesmo do receipt.quantity
+        if tx is None or tx.value != event.amount_in:
+            invalid_fields.append(
+                "1) tx.value does not match locked amount "
+                f"(tx.value={getattr(tx, 'value', '<missing>')}, amount={event.amount_in})"
+            )
+
+        # 2) verificar se o receipt.mainchain.tokenAddr é o contract oficial da bridge
+        if str(event.address).lower() != self.POLYGON_NATIVE_BRIDGE_CONTRACT:
+            invalid_fields.append(
+                "2) LockedToken contract is not the official native bridge "
+                f"(contract={event.contract_address or '<missing>'}, "
+                f"expected={self.POLYGON_NATIVE_BRIDGE_CONTRACT})"
+            )
+
+        # 3) verificar se o status é success
+        if str(event.status) != "1":
+            invalid_fields.append(
+                f"3) transaction status is not success (status={event.status or '<missing>'})"
+            )
+
+        return invalid_fields
+
+    def _check_locked_token_erc20(self, event, transfers) -> list[str]:
+        """token contract checks regarding ERC20 tokens"""
+        invalid_fields = []
+
+        # 0) Verificar se houve transfer event nesta transação
+        if not transfers:
+            return ["0) no ERC20 Transfer event found in the LockedToken transaction"]
+
+        matching_transfers = [
+            transfer
+            for transfer in transfers
+            if str(transfer.token_address).lower() == str(event.token_in).lower()
+            and str(transfer.to_address).lower() == str(event.contract_address).lower()
+            and str(transfer.from_address).lower() == str(event.actor_from).lower()
+            and transfer.amount == event.amount_in
+        ]
+        if matching_transfers:
+            return invalid_fields
+
+        token_transfers = [
+            transfer
+            for transfer in transfers
+            if str(transfer.token_address).lower() == str(event.token_in).lower()
+        ]
+
+        # 1) verificar se o transfer.to é o address do token
+        if not any(
+            str(transfer.to_address).lower() == str(event.contract_address).lower()
+            for transfer in token_transfers
+        ):
+            invalid_fields.append(
+                "1) no token Transfer to the LockedToken contract "
+                f"(expected_to={event.contract_address or '<missing>'})"
+            )
+
+        # 2) verificar se o transfer.from é quem fez o lockedERC20
+        if not any(
+            str(transfer.from_address).lower() == str(event.actor_from).lower()
+            for transfer in token_transfers
+        ):
+            invalid_fields.append(
+                "2) no token Transfer from the LockedToken depositor "
+                f"(expected_from={event.actor_from or '<missing>'})"
+            )
+
+        # 3) verificar se transfer.value é igual ao receipt.info.quantity
+        if not any(transfer.amount == event.amount_in for transfer in token_transfers):
+            invalid_fields.append(
+                "3) no token Transfer amount matches the LockedToken amount "
+                f"(expected_amount={event.amount_in})"
+            )
+
+        if not invalid_fields:
+            invalid_fields.append(
+                "1) 2) 3) no single token Transfer matches all LockedToken checks"
+            )
+
+        return invalid_fields
+
+    '''
+    def token_contract_attacks(self) -> list[DetectionAlert]:
+        """
+        For lock/burn events
+        1)
+            a) se for native token,
+                1) verificar se o "value" da transação é o mesmo do receipt.quantity (event amount provavelmente)
+                2) verificar se o receipt.mainchain.tokenAddr (campo "address" da row deste evento) é o contract oficial da bridge (0x8484Ef722627bf18ca5Ae6BcF031c23E6e922B30)
+                3) verificar se o status é success (?)
+            b) se for token ERC20
+                0) Verificar se houve transfer event nesta transação, senão alert
+                1) verificar se o transfer.to é o address do token ([DepositRequested].receipt.mainchain.tokenAddr, ou seja, campo "address" da row do evento lockedERC20)
+                2) verificar se o transfer.from é o [DepositRequested].receipt.mainchain.addr, ou seja, quem fez o lockedERC20 (column depositor no evento lockederc20)
+                3) verificar se transfer.value é igual ao [DepositRequested].receipt.info.quantity (coluna amount do evento lockedERC20)
+
+                [importante] no caso de haver mais que um transfer event, é possivel que tenha havido chained transfers, por isso temos que seguir o caminho e verificar se tudo bate certo (mais que um transfer pode não significar que houve ataque, pode ter havido A->B->C->lock/burn)
+
+        """
+
+        alerts: list[DetectionAlert] = []
+
+        # 1 - fetch lock/burn events - lockedToken only for now, and corresponding transaction
+        # TODO: add the remaining lock/burn event types after LockedToken checks are covered.
+        locked_events = NormalizedEventRepository.get_events_by_event_type(
+            NormalizedEventType.LOCKED_TOKEN,
+            self.bridge,
+        )
+        txs_by_hash = {
+            tx.transaction_hash: tx
+            for tx in PolygonBlockchainTransactionRepository.get_all()
+            if tx.transaction_hash is not None
+        }
+        transfers_by_tx: dict[str, list] = {}
+        for transfer in PolygonTransferRepository.get_all():
+            transfers_by_tx.setdefault(transfer.transaction_hash, []).append(transfer)
+
+        # 2 - for each event, check if it's native or ERC20 token (root token is 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2)
+        for event in locked_events:
+            tx = txs_by_hash.get(event.transaction_hash)
+            if str(event.token_in).lower() == self.POLYGON_NATIVE_ROOT_TOKEN:
+                invalid_fields = self._check_locked_token_native(event, tx)
+            else:
+                invalid_fields = self._check_locked_token_erc20(
+                    event,
+                    transfers_by_tx.get(event.transaction_hash, []),
+                )
+
+            if not invalid_fields:
+                continue
+
+            correlation_id = event.correlation_id or event.transaction_hash or str(event.raw_pk)
+            alerts.append(
+                self.create_detection_alert(
+                    signature_type=SignatureType.CONTRACT_MISMATCH,
+                    severity=AlertSeverity.HIGH,
+                    bridge=self.bridge,
+                    correlation_id=correlation_id,
+                    correlation_type="locked_token_contract_attack",
+                    src_event_id=event.id,
+                    dst_event_id=None,
+                    title="polygon: LockedToken failed token contract checks",
+                    description=(
+                        f"Found LockedToken event with correlation_id={correlation_id}. "
+                        f"Invalid token contract fields: {'; '.join(invalid_fields)}."
+                    ),
+                    created_at_ts=event.timestamp,
+                    probability="TODO",
+                )
+            )
+
+        return alerts
+    '''
