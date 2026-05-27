@@ -216,6 +216,7 @@ class PolygonAnalyser(Analyser):
 
         return alerts
 
+    '''
     # token contract attacks:
     def _check_locked_token_native(self, event, tx) -> list[str]:
         """token contract checks regarding native tokens"""
@@ -303,7 +304,6 @@ class PolygonAnalyser(Analyser):
 
         return invalid_fields
 
-    '''
     def token_contract_attacks(self) -> list[DetectionAlert]:
         """
         For lock/burn events

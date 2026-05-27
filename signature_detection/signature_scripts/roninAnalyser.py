@@ -26,9 +26,9 @@ RONIN_SIGNATURE_THRESHOLD = 16
 
 
 class RoninAnalyser(Analyser):
-    RONIN_NATIVE_TOKEN = "TODO"
-    RONIN_MAINCHAIN_GATEWAY_CONTRACT = "0x64192819ac13ef72bf6b5ae239ac672b43a9af08"
-    RONIN_GATEWAY_CONTRACT = "0x0cf8ff40a508bdbc39fbe1bb679dcba64e65c7df"
+    # RONIN_NATIVE_TOKEN = "TODO"
+    # RONIN_MAINCHAIN_GATEWAY_CONTRACT = "0x64192819ac13ef72bf6b5ae239ac672b43a9af08"
+    # RONIN_GATEWAY_CONTRACT = "0x0cf8ff40a508bdbc39fbe1bb679dcba64e65c7df"
 
     def __init__(self):
         super().__init__("ronin")
@@ -241,9 +241,10 @@ class RoninAnalyser(Analyser):
 
         return alerts
 
+    """
     # token contract attacks:
     def _check_ronin_native_token(self, event, tx, expected_contract) -> list[str]:
-        """token contract checks regarding native tokens"""
+        token contract checks regarding native tokens
         invalid_fields = []
 
         # 1) verificar se o "value" da transação é o mesmo do receipt.quantity
@@ -269,7 +270,7 @@ class RoninAnalyser(Analyser):
         return invalid_fields
 
     def _check_ronin_erc20_token(self, event, transfers) -> list[str]:
-        """token contract checks regarding ERC20 tokens"""
+        token contract checks regarding ERC20 tokens
         invalid_fields = []
 
         # 0) Verificar se houve transfer event nesta transação
@@ -399,3 +400,4 @@ class RoninAnalyser(Analyser):
 
         return alerts
     '''
+    """

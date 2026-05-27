@@ -36,10 +36,9 @@ class CCIPAnalyser(Analyser):
         return str(value).lower()
 
     def _expected_source_contracts(self) -> tuple[str, ...]:
-        return VERIFIED_CONTRACTS["ccip"]["message_execution"][
-            NormalizedEventType.MESSAGE_SENT
-        ]
+        return VERIFIED_CONTRACTS["ccip"]["message_execution"][NormalizedEventType.MESSAGE_SENT]
 
+    """
     def _check_message_sent_native_token(self, event, tx) -> list[str]:
         invalid_fields = []
 
@@ -138,7 +137,6 @@ class CCIPAnalyser(Analyser):
 
         return invalid_fields
 
-    '''
     def token_contract_attacks(self) -> list[DetectionAlert]:
         alerts: list[DetectionAlert] = []
 
@@ -193,4 +191,4 @@ class CCIPAnalyser(Analyser):
             )
 
         return alerts
-    '''
+    """

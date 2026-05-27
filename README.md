@@ -15,6 +15,58 @@ pip install -r requirements.txt
 python3 -m pytest [tests/TEST_NAME.py]
 ```
 
+## Run the program
+
+Run commands from the `blockchain-ids-tese` directory:
+
+```sh
+cd blockchain-ids-tese
+```
+
+### Signature detection only
+
+Runs the analysers over everything already present in the database tables:
+
+```sh
+python3 cli.py --bridge ronin --blockchains ethereum ronin
+```
+
+Store generated alerts:
+
+```sh
+python3 cli.py --bridge ronin --blockchains ethereum ronin --store-alerts
+```
+
+Polygon example:
+
+```sh
+python3 cli.py --bridge polygon --blockchains ethereum polygon
+```
+
+### Normalize then analyse
+
+Use this when raw bridge tables already exist, but normalized events need to be rebuilt:
+
+```sh
+python3 cli.py --bridge ronin --blockchains ethereum ronin --need-normalization
+```
+
+### Extract, generate, normalize, and analyse
+
+Use this when data still needs to be fetched from `XChainDataGen`. Timestamps are required only for extraction:
+
+```sh
+python3 cli.py \
+  --bridge ronin \
+  --blockchains ethereum ronin \
+  --start-ts 1735689600 \
+  --end-ts 1735776000 \
+  --need-extraction \
+  --need-normalization
+```
+
+Add `--store-alerts` if the detected alerts should be persisted.
+
 ## [Helper] Clear tables
 ```sh
 python3 -m helpers.clear_tables --table cctp_deposit_for_burn

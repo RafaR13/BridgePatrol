@@ -2,6 +2,7 @@
 import argparse
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
@@ -13,8 +14,8 @@ from normalization.runners.runner import run_normalization_for_bridge
 class CliArgs:
     bridge: str
     blockchains: List[str]
-    start_ts: int
-    end_ts: int
+    start_ts: int | None
+    end_ts: int | None
     need_extraction: bool
     need_normalization: bool
     store_alerts: bool
@@ -46,9 +47,10 @@ class Cli:
         p.add_argument(
             "--start-ts",
             type=int,
-            required=True,
+            required=False,
             help=(
-                "Unix timestamp (seconds). You can run "
+                "Optional Unix timestamp (seconds). Required only with --need-extraction. "
+                "You can run "
                 '"python3 src/helpers/getUnixTimestamp.py [yyyy-mm-dd] --time [hh:mm:ss]" '
                 "to get the Unix timestamp on a given date."
             ),
@@ -56,9 +58,10 @@ class Cli:
         p.add_argument(
             "--end-ts",
             type=int,
-            required=True,
+            required=False,
             help=(
-                "Unix timestamp (seconds). You can run "
+                "Optional Unix timestamp (seconds). Required only with --need-extraction. "
+                "You can run "
                 '"python3 src/helpers/getUnixTimestamp.py [yyyy-mm-dd] --time [hh:mm:ss]" '
                 "to get the Unix timestamp on a given date."
             ),
@@ -71,11 +74,14 @@ class Cli:
         parser = Cli._build_parser()
         ns = parser.parse_args(argv)
 
-        if ns.start_ts < 0:
+        if ns.start_ts is not None and ns.start_ts < 0:
             parser.error("--start-ts must be a non-negative Unix timestamp.")
 
-        if ns.end_ts < 0:
+        if ns.end_ts is not None and ns.end_ts < 0:
             parser.error("--end-ts must be a non-negative Unix timestamp.")
+
+        if ns.need_extraction and (ns.start_ts is None or ns.end_ts is None):
+            parser.error("--start-ts and --end-ts are required when --need-extraction is used.")
 
         return CliArgs(
             bridge=ns.bridge,
@@ -89,6 +95,8 @@ class Cli:
 
     def run() -> int:
         args = Cli.parse()
+        analysis_start_ts = args.start_ts if args.start_ts is not None else 0
+        analysis_end_ts = args.end_ts if args.end_ts is not None else int(time.time())
         print(
             "Analysis under construction ... :) "
             f"(bridge={args.bridge}, blockchains={args.blockchains}, start_ts={args.start_ts}, end_ts={args.end_ts}, need_extraction={args.need_extraction}, need_normalization={args.need_normalization}, store_alerts={args.store_alerts})"
@@ -137,7 +145,12 @@ class Cli:
         # run signature detection
         alerts = []
         print("Running signature detection phase...\n")
-        alerts = run_for_bridge(args.bridge, start_ts=args.start_ts, end_ts=args.end_ts, persist=args.store_alerts)
+        alerts = run_for_bridge(
+            args.bridge,
+            start_ts=analysis_start_ts,
+            end_ts=analysis_end_ts,
+            persist=args.store_alerts,
+        )
         for alert in alerts:
             print(alert + "\n")
         print("Signature detection phase completed.\n")
