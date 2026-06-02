@@ -23,6 +23,7 @@ class TokenChecksMixin:
         return event.token_out if event.token_out is not None else event.token_in
 
     def amount_mismatch(self, bridge: str) -> list[DetectionAlert]:
+        print("starting analysis for amount_mismatch")
         alerts = []
 
         for flow_type in ("deposits", "withdrawals"):
@@ -77,14 +78,19 @@ class TokenChecksMixin:
                                 f"{destination_amount} for correlation_id={correlation_id}. "
                                 f"Flow={flow.name}.{token_note}"
                             ),
-                            created_at_ts=destination_event.timestamp or source_event.timestamp,
+                            created_at_ts=(
+                                self._created_at_ts_for_event(destination_event)
+                                or self._created_at_ts_for_event(source_event)
+                            ),
                             probability="TODO",
                         )
                     )
 
+        print(f"cought {len(alerts)} alerts")
         return alerts
 
     def over_mint(self, bridge: str) -> list[DetectionAlert]:
+        print("starting analysis for over_mint")
         alerts = []
         for flow in self._configured_flows(bridge, "deposits"):
             if not flow.amount_check:
@@ -121,13 +127,15 @@ class TokenChecksMixin:
                                 f"with amount {lock_amount} for correlation_id={correlation_id}. "
                                 f"Flow={flow.name}."
                             ),
-                            created_at_ts=mint_event.timestamp,
+                            created_at_ts=self._created_at_ts_for_event(mint_event),
                             probability="TODO",
                         )
                     )
+        print(f"cought {len(alerts)} alerts")
         return alerts
 
     def over_release(self, bridge: str) -> list[DetectionAlert]:
+        print("starting analysis for over_release")
         alerts = []
         for flow in self._configured_flows(bridge, "withdrawals"):
             if not flow.amount_check:
@@ -164,8 +172,9 @@ class TokenChecksMixin:
                                 f"with amount {burn_amount} for correlation_id={correlation_id}. "
                                 f"Flow={flow.name}."
                             ),
-                            created_at_ts=release_event.timestamp,
+                            created_at_ts=self._created_at_ts_for_event(release_event),
                             probability="TODO",
                         )
                     )
+        print(f"cought {len(alerts)} alerts")
         return alerts

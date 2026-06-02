@@ -2,9 +2,6 @@ from __future__ import annotations
 
 from db.repository.detection_alert.detection_alert_model import DetectionAlert
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
-from db.repository.normalized_event.normalized_event_repository import (
-    NormalizedEventRepository,
-)
 from db.repository.transfer_events.transfer_events_repository import (
     CCIPTransferRepository,
     CCTPTransferRepository,
@@ -29,15 +26,17 @@ TRANSFER_REPOSITORIES = {
 class TokenContractAttacksMixin:
     def token_contract_attacks(self) -> list[DetectionAlert]:
         """Check for token contract attacks. Search for discrepancies between lock/burn event and either the underlying tx (native token), or the corresponding transfer event (ERC20)"""
+        print("starting analysis for token_contract_attacks")
         # 0 - get configs for bridge
         alerts: list[DetectionAlert] = []
         configs = TOKEN_CONTRACT_ATTACK_CONFIG.get(self.bridge, ())
         self._debug(f"token_contract_attacks: configs={len(configs)}")
         if not configs:
+            print(f"cought {len(alerts)} alerts")
             return alerts
 
         # 1 - fetch lock/burn events
-        blockchain_transactions = self.fetch_blockchain_transactions()
+        blockchain_transactions = self._analysis_blockchain_transactions()
         txs_by_hash = {
             tx.transaction_hash: tx
             for tx in blockchain_transactions
@@ -62,7 +61,7 @@ class TokenContractAttacksMixin:
             self._debug("token_contract_attacks: no transfer repository configured")
 
         for config in configs:
-            events = NormalizedEventRepository.get_events_by_event_type(
+            events = self._events_by_event_type(
                 config.event_type,
                 self.bridge,
             )
@@ -133,11 +132,12 @@ class TokenContractAttacksMixin:
                             f"correlation_id={correlation_id}. "
                             f"Invalid token contract fields: {'; '.join(invalid_fields)}."
                         ),
-                        created_at_ts=event.timestamp,
+                        created_at_ts=self._created_at_ts_for_event(event),
                         probability="TODO",
                     )
                 )
 
+        print(f"cought {len(alerts)} alerts")
         return alerts
 
     def _is_native_token(

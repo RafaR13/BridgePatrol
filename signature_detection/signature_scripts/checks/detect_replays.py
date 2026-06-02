@@ -13,6 +13,7 @@ class DetectReplaysMixin:
         flow_or_source: EventPairFlow | NormalizedEventType,
         destination: NormalizedEventType | None = None,
     ) -> list[DetectionAlert]:
+        print("starting analysis for detect_replays")
         if isinstance(flow_or_source, EventPairFlow):
             flow = flow_or_source
         else:
@@ -108,7 +109,7 @@ class DetectReplaysMixin:
                                 f"{sorted([h for h in dst_tx_hashes if h is not None])}. "
                                 f"This suggests the same lock/burn may have been consumed more than once."
                             ),
-                            created_at_ts=dst_event.timestamp,
+                            created_at_ts=self._created_at_ts_for_event(dst_event),
                             probability="TODO",
                         )
                     )
@@ -132,7 +133,7 @@ class DetectReplaysMixin:
                                 f"with different logical payloads (amount / recipient / token / chain context differ). "
                                 f"This is stronger evidence of replay, mutation, or malformed processing."
                             ),
-                            created_at_ts=dst_event.timestamp,
+                            created_at_ts=self._created_at_ts_for_event(dst_event),
                             probability="TODO",
                         )
                     )
@@ -161,9 +162,10 @@ class DetectReplaysMixin:
                                 f"correlation_id={correlation_id}. This can be benign duplication, "
                                 f"but may also indicate replay or duplicate ingestion."
                             ),
-                            created_at_ts=dst_event.timestamp,
+                            created_at_ts=self._created_at_ts_for_event(dst_event),
                             probability="TODO",
                         )
                     )
 
+        print(f"cought {len(alerts)} alerts")
         return alerts

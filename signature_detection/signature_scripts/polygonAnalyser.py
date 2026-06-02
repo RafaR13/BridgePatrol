@@ -4,9 +4,6 @@ from datetime import datetime, timedelta, timezone
 from db.repository.blockchain_transactions.blockchain_transactions_repository import (
     PolygonBlockchainTransactionRepository,
 )
-from db.repository.normalized_event.normalized_event_repository import (
-    NormalizedEventRepository,
-)
 from db.repository.polygon_token_mapping.polygon_token_mapping_repository import (
     PolygonTokenMappingRepository,
 )
@@ -67,7 +64,7 @@ class PolygonAnalyser(Analyser):
         state_sender = POLYGON_POS_CORE["state_sender"]
         child_chain_manager_proxy = POLYGON_POS_CORE["child_chain_manager_proxy"]
 
-        events = NormalizedEventRepository.get_events_by_event_type(
+        events = self._events_by_event_type(
             NormalizedEventType.STATE_SYNCED,
             self.bridge,
         )
@@ -112,7 +109,7 @@ class PolygonAnalyser(Analyser):
                         f"Found StateSynced event with correlation_id={correlation_id}. "
                         f"Invalid Polygon core contract fields: {'; '.join(invalid_fields)}."
                     ),
-                    created_at_ts=event.timestamp,
+                    created_at_ts=self._created_at_ts_for_event(event),
                     probability="TODO",
                 )
             )
@@ -189,18 +186,18 @@ class PolygonAnalyser(Analyser):
                         f"expected_child_token={expected_child_token or '<missing>'}, "
                         f"mapping_checked_at={checked_at}."
                     ),
-                    created_at_ts=event.timestamp,
+                    created_at_ts=self._created_at_ts_for_event(event),
                     probability="TODO",
                 )
             )
 
-        for event in NormalizedEventRepository.get_events_by_event_type(
+        for event in self._events_by_event_type(
             NormalizedEventType.TOKEN_DEPOSITED,
             self.bridge,
         ):
             add_alert(event, event.token_in, event.token_out)
 
-        for event in NormalizedEventRepository.get_events_by_event_type(
+        for event in self._events_by_event_type(
             NormalizedEventType.CHILD_TOKEN_BURN,
             self.bridge,
         ):

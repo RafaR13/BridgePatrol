@@ -7,9 +7,6 @@ from typing import List
 from db.repository.blockchain_transactions.blockchain_transactions_repository import (
     RoninBlockchainTransactionRepository,
 )
-from db.repository.normalized_event.normalized_event_repository import (
-    NormalizedEventRepository,
-)
 from db.repository.transfer_events.transfer_events_repository import (
     RoninTransferRepository,
 )
@@ -37,7 +34,10 @@ class RoninAnalyser(Analyser):
         return RoninBlockchainTransactionRepository.get_all()
 
     def fetch_blockchain_transactions_with_receipts_with_signatures(self):
-        return RoninBlockchainTransactionRepository.get_transactions_with_receipt_with_signatures()
+        transactions = (
+            RoninBlockchainTransactionRepository.get_transactions_with_receipt_with_signatures()
+        )
+        return self._filter_objects_for_analysis_window(transactions)
 
     def analyse_bridge_specific_signatures(self) -> List[DetectionAlert]:
         alerts = []
@@ -79,7 +79,8 @@ class RoninAnalyser(Analyser):
         )
 
     def _decoded_input(self, tx) -> dict:
-        decoded_input = tx.decoded_input_data or {}
+        decoded_input = {}
+        # decoded_input = tx.decoded_input_data or {}
         if isinstance(decoded_input, str):
             try:
                 decoded_input = json.loads(decoded_input)
@@ -135,7 +136,10 @@ class RoninAnalyser(Analyser):
                                 f"Found Ronin {flow.name} pair with inconsistent token contracts "
                                 f"for correlation_id={correlation_id}: {'; '.join(mismatches)}."
                             ),
-                            created_at_ts=destination_event.timestamp or source_event.timestamp,
+                            created_at_ts=(
+                                self._created_at_ts_for_event(destination_event)
+                                or self._created_at_ts_for_event(source_event)
+                            ),
                             probability="TODO",
                         )
                     )

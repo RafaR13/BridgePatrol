@@ -35,6 +35,7 @@ class UnauthorizedContractsMixin:
         return str(event.contract_address).lower() in verified_contracts
 
     def unauthorized_contracts(self, bridge: str) -> list[DetectionAlert]:
+        print("starting analysis for unauthorized_contracts")
         alerts: list[DetectionAlert] = []
         seen_alerts: set[tuple[str, int | None, str, str]] = set()
 
@@ -93,9 +94,10 @@ class UnauthorizedContractsMixin:
                                         f"correlation_id={correlation_id}. "
                                         f"Flow={flow.name}; expected one of: {expected_contracts}."
                                     ),
-                                    created_at_ts=event.timestamp,
+                                    created_at_ts=self._created_at_ts_for_event(event),
                                     probability="TODO",
                                 )
                             )
 
+        print(f"cought {len(alerts)} alerts")
         return alerts

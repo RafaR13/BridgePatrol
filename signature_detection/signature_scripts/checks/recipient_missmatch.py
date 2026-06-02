@@ -15,6 +15,7 @@ class RecipientMissmatchMixin:
         return None
 
     def recipient_mismatch(self, bridge: str) -> list[DetectionAlert]:
+        print("starting analysis for recipient_mismatch")
         alerts = []
 
         for flow_type in ("deposits", "withdrawals"):
@@ -55,9 +56,13 @@ class RecipientMissmatchMixin:
                                 f"{destination_event.actor_to} for correlation_id={correlation_id}. "
                                 f"Flow={flow.name}."
                             ),
-                            created_at_ts=destination_event.timestamp or source_event.timestamp,
+                            created_at_ts=(
+                                self._created_at_ts_for_event(destination_event)
+                                or self._created_at_ts_for_event(source_event)
+                            ),
                             probability="TODO",
                         )
                     )
 
+        print(f"cought {len(alerts)} alerts")
         return alerts

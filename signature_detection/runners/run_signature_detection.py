@@ -11,7 +11,13 @@ ANALYSER_BY_BRIDGE = {
     Bridges.POLYGON.value: PolygonAnalyser,
 }
 
-def run_for_bridge(bridge: str, start_ts: int, end_ts: int, persist: bool = False) -> list[DetectionAlert]:
+
+def run_for_bridge(
+    bridge: str,
+    start_ts: int | None = None,
+    end_ts: int | None = None,
+    persist: bool = False,
+) -> list[DetectionAlert]:
     # ensure tables exist
     Base.metadata.create_all(bind=engine)
     bridge_name = bridge.value if isinstance(bridge, Bridges) else bridge
@@ -22,7 +28,7 @@ def run_for_bridge(bridge: str, start_ts: int, end_ts: int, persist: bool = Fals
     if analyser_cls is None:
         return []
     analyser = analyser_cls()
-    
+
     alerts = analyser.analyse_all(start_ts=start_ts, end_ts=end_ts)
 
     if persist and alerts:
@@ -31,15 +37,28 @@ def run_for_bridge(bridge: str, start_ts: int, end_ts: int, persist: bool = Fals
 
     return alerts
 
-def run_for_bridges(bridges: list[str], start_ts: int, end_ts: int, persist: bool = False) -> list[DetectionAlert]:
+
+def run_for_bridges(
+    bridges: list[str],
+    start_ts: int | None = None,
+    end_ts: int | None = None,
+    persist: bool = False,
+) -> list[DetectionAlert]:
     all_alerts = []
     for bridge in bridges:
         alerts = run_for_bridge(bridge, start_ts=start_ts, end_ts=end_ts, persist=persist)
         all_alerts.extend(alerts)
     return all_alerts
 
-def run_for_all_bridges(start_ts: int, end_ts: int, persist: bool = False) -> list[DetectionAlert]:
+
+def run_for_all_bridges(
+    start_ts: int | None = None,
+    end_ts: int | None = None,
+    persist: bool = False,
+) -> list[DetectionAlert]:
     all_alerts = []
     for bridge in Bridges:
-        all_alerts.extend(run_for_bridge(bridge=bridge, start_ts=start_ts, end_ts=end_ts, persist=persist))
+        all_alerts.extend(
+            run_for_bridge(bridge=bridge, start_ts=start_ts, end_ts=end_ts, persist=persist)
+        )
     return all_alerts

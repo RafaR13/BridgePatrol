@@ -5,8 +5,9 @@ from signature_detection.constants import AlertSeverity, EventPairFlow, Signatur
 
 
 class MissingEventPairsMixin:
-    def lock_without_mint(self, bridge: str, start_ts: int, end_ts: int) -> list[DetectionAlert]:
+    def lock_without_mint(self, bridge: str) -> list[DetectionAlert]:
         """lock event without a corresponding mint event"""
+        print("starting analysis for lock_without_mint")
         # TODO: check if proof was sent but no mint occured
         alerts = []
 
@@ -33,7 +34,6 @@ class MissingEventPairsMixin:
                 description_suffix = "No matching mint event was observed."
                 if self._event_is_recent(
                     bridge,
-                    end_ts,
                     event_timestamp,
                     event_block_number,
                 ):
@@ -61,9 +61,11 @@ class MissingEventPairsMixin:
                         probability="TODO",
                     )
                 )
+        print(f"cought {len(alerts)} alerts")
         return alerts
 
-    def mint_without_lock(self, bridge: str, start_ts: int, end_ts: int) -> list[DetectionAlert]:
+    def mint_without_lock(self, bridge: str) -> list[DetectionAlert]:
+        print("starting analysis for mint_without_lock")
         alerts = []
         tx_block_numbers, tx_timestamps = self._blockchain_transaction_context()
 
@@ -94,7 +96,6 @@ class MissingEventPairsMixin:
                 description_suffix = "No matching lock event was observed."
                 if self._event_is_recent(
                     bridge,
-                    end_ts,
                     event_timestamp,
                     event_block_number,
                 ):
@@ -122,4 +123,5 @@ class MissingEventPairsMixin:
                         probability="TODO",
                     )
                 )
+        print(f"cought {len(alerts)} alerts")
         return alerts

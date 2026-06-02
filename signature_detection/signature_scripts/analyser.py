@@ -22,6 +22,8 @@ from signature_detection.signature_scripts.checks.token_contract_attacks import 
 from signature_detection.signature_scripts.checks.unauthorized_contracts import (
     UnauthorizedContractsMixin,
 )
+
+from signature_detection.signature_scripts.checks.check_event_callers import CheckEventCallersMixin
 from signature_detection.signature_scripts.utils import AnalyserUtilsMixin
 
 
@@ -32,6 +34,7 @@ class Analyser(
     UnauthorizedContractsMixin,
     DetectReplaysMixin,
     TokenContractAttacksMixin,
+    CheckEventCallersMixin,
     AnalyserUtilsMixin,
     ABC,
 ):
@@ -41,6 +44,9 @@ class Analyser(
     def __init__(self, bridge: str):
         self.bridge = bridge
         self._transaction_context: tuple[dict[str, int], dict[str, int]] | None = None
+        self._analysis_start_ts: int | None = None
+        self._analysis_end_ts: int | None = None
+        self._analysis_has_time_filter = False
 
     def _debug(self, message: str) -> None:
         if self.DEBUG:
@@ -55,15 +61,18 @@ class Analyser(
         """Run checks that only apply to this bridge."""
         pass
 
-    def analyse_all(self, start_ts: int, end_ts: int) -> List[DetectionAlert]:
+    def analyse_all(
+        self, start_ts: int | None = None, end_ts: int | None = None
+    ) -> List[DetectionAlert]:
         """
         Run every configured analyser check and return a single alert list.
         """
+        self._set_analysis_window(start_ts=start_ts, end_ts=end_ts)
         alerts: List[DetectionAlert] = []
 
         # Missing event pairs
-        alerts.extend(self.lock_without_mint(self.bridge, start_ts, end_ts))
-        alerts.extend(self.mint_without_lock(self.bridge, start_ts, end_ts))
+        alerts.extend(self.lock_without_mint(self.bridge))
+        alerts.extend(self.mint_without_lock(self.bridge))
 
         # Recipient Mismatch
         alerts.extend(self.recipient_mismatch(self.bridge))
@@ -96,7 +105,7 @@ class Analyser(
         dst_event_id: int | None,
         title: str,
         description: str,
-        created_at_ts: int,
+        created_at_ts: int | None,
         probability: str,
     ) -> DetectionAlert:
         return DetectionAlert(

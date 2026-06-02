@@ -44,6 +44,73 @@ class AnalyserUtilsMixin:
             return None
         return "|".join(str(value) for value in values)
 
+    def _set_analysis_window(
+        self, start_ts: int | None = None, end_ts: int | None = None
+    ) -> None:
+        self._analysis_start_ts = start_ts
+        self._analysis_has_time_filter = start_ts is not None or end_ts is not None
+        self._transaction_context = None
+
+        if end_ts is not None:
+            self._analysis_end_ts = end_ts
+            return
+
+        tx_timestamps = [
+            tx.timestamp
+            for tx in self.fetch_blockchain_transactions()
+            if getattr(tx, "timestamp", None) is not None
+        ]
+        self._analysis_end_ts = max(tx_timestamps) if tx_timestamps else None
+
+    def _object_timestamp(self, obj) -> int | None:
+        return getattr(obj, "timestamp", None)
+
+    def _event_timestamp(self, event: NormalizedEvent) -> int | None:
+        if event.timestamp is not None:
+            return event.timestamp
+
+        _, tx_timestamps = self._blockchain_transaction_context()
+        return tx_timestamps.get(event.transaction_hash)
+
+    def _is_timestamp_in_analysis_window(self, timestamp: int | None) -> bool:
+        if not self._analysis_has_time_filter:
+            return True
+        if timestamp is None:
+            return False
+        if self._analysis_start_ts is not None and timestamp < self._analysis_start_ts:
+            return False
+        if self._analysis_end_ts is not None and timestamp > self._analysis_end_ts:
+            return False
+        return True
+
+    def _event_in_analysis_window(self, event: NormalizedEvent) -> bool:
+        return self._is_timestamp_in_analysis_window(self._event_timestamp(event))
+
+    def _filter_events_for_analysis_window(
+        self, events: list[NormalizedEvent]
+    ) -> list[NormalizedEvent]:
+        return [event for event in events if self._event_in_analysis_window(event)]
+
+    def _filter_objects_for_analysis_window(self, objects: list) -> list:
+        return [
+            obj
+            for obj in objects
+            if self._is_timestamp_in_analysis_window(self._object_timestamp(obj))
+        ]
+
+    def _analysis_blockchain_transactions(self) -> list:
+        return self._filter_objects_for_analysis_window(self.fetch_blockchain_transactions())
+
+    def _events_by_event_type(
+        self, event_type: NormalizedEventType, bridge: str | None = None
+    ) -> list[NormalizedEvent]:
+        bridge_name = bridge or self.bridge
+        events = NormalizedEventRepository.get_events_by_event_type(event_type, bridge_name)
+        return self._filter_events_for_analysis_window(events)
+
+    def _created_at_ts_for_event(self, event: NormalizedEvent) -> int | None:
+        return self._event_timestamp(event)
+
     def fetch_event_pairs(
         self,
         bridge: str,
@@ -66,10 +133,8 @@ class AnalyserUtilsMixin:
                 destination=destination,
             )
 
-        source_events = NormalizedEventRepository.get_events_by_event_type(flow.source, bridge)
-        destination_events = NormalizedEventRepository.get_events_by_event_type(
-            flow.destination, bridge
-        )
+        source_events = self._events_by_event_type(flow.source, bridge)
+        destination_events = self._events_by_event_type(flow.destination, bridge)
 
         grouped_events = {}
         for event in source_events:
@@ -89,9 +154,7 @@ class AnalyserUtilsMixin:
             grouped_events[group_key]["destination"].append(event)
 
         for related in flow.related_events:
-            related_events = NormalizedEventRepository.get_events_by_event_type(
-                related.event_type, bridge
-            )
+            related_events = self._events_by_event_type(related.event_type, bridge)
             anchors_by_value: dict[str, set[str]] = {}
             for group_key, events in grouped_events.items():
                 for anchor_event in events[related.anchor_side]:
@@ -131,11 +194,20 @@ class AnalyserUtilsMixin:
         return self._transaction_context
 
     def _event_is_recent(
-        self, bridge: str, end_ts: int, event_timestamp: int | None, event_block_number: int | None
+        self,
+        bridge: str,
+        event_timestamp: int | None,
+        event_block_number: int | None,
     ) -> bool:
+        end_ts = self._analysis_end_ts
         time_threshold = TIME_THRESHOLDS.get(bridge, 3600)
         number_of_blocks_to_confirm = BlockConfirmationThresholds.get(bridge, 12)
-        latest_block_number = NormalizedEventRepository.get_latest_block_number_by_bridge(bridge)
+        tx_block_numbers = [
+            tx.block_number
+            for tx in self.fetch_blockchain_transactions()
+            if getattr(tx, "block_number", None) is not None
+        ]
+        latest_block_number = max(tx_block_numbers) if tx_block_numbers else None
 
         is_recent_block = (
             latest_block_number is not None
@@ -143,7 +215,11 @@ class AnalyserUtilsMixin:
             and event_block_number <= latest_block_number
             and latest_block_number - event_block_number <= number_of_blocks_to_confirm
         )
-        event_age = end_ts - event_timestamp if event_timestamp is not None else None
+        event_age = (
+            end_ts - event_timestamp
+            if end_ts is not None and event_timestamp is not None
+            else None
+        )
         event_is_within_time_threshold = event_age is not None and event_age < time_threshold
 
         return is_recent_block or event_is_within_time_threshold
