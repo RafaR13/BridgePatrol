@@ -85,6 +85,9 @@ class Analyser(
         # Contract authorization
         alerts.extend(self.unauthorized_contracts(self.bridge))
 
+        # Event callers
+        alerts.extend(self.check_event_callers())
+
         # Replay / duplicate execution
         for flow_type in ("deposits", "withdrawals"):
             for flow in self._configured_flows(self.bridge, flow_type):
