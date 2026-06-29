@@ -66,7 +66,7 @@ class BridgeEventConfig:
 @dataclass(frozen=True)
 class TokenContractAttackConfig:
     event_type: NormalizedEventType
-    native_token: str
+    native_tokens: dict[str, str]
     expected_contracts: tuple[str, ...]
     correlation_type: str
     event_label: str
@@ -218,6 +218,67 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
     "stargate": BridgeEventConfig(
         todo="TODO: define Stargate event pair grouping.",
     ),
+    "thorchain": BridgeEventConfig(
+        todo=(
+            "Source-only dataset: destination pairing is intentionally not configured "
+            "and must not be treated as a missing destination event."
+        ),
+    ),
+    "meter.io": BridgeEventConfig(
+        deposits=(
+            EventPairFlow(
+                name="deposit_execution",
+                source=NormalizedEventType.DEPOSIT,
+                destination=NormalizedEventType.PROPOSAL_EVENT,
+                source_key=("correlation_id",),
+                destination_key=("correlation_id",),
+                related_events=(
+                    RelatedEvent(
+                        event_type=NormalizedEventType.TRANSFER,
+                        side="destination",
+                        anchor_side="destination",
+                        anchor_event_type=NormalizedEventType.PROPOSAL_EVENT,
+                    ),
+                    RelatedEvent(
+                        event_type=NormalizedEventType.INTERNAL_TRANSFER,
+                        side="destination",
+                        anchor_side="destination",
+                        anchor_event_type=NormalizedEventType.PROPOSAL_EVENT,
+                    ),
+                ),
+            ),
+        ),
+        todo=(
+            "TODO: Meter.io source amount is currently stored only in extra_data for "
+            "the documented samples, so amount checks remain disabled. Some Meter "
+            "destinations are also unavailable in the source material."
+        ),
+    ),
+    "qubit": BridgeEventConfig(
+        deposits=(
+            EventPairFlow(
+                name="deposit_mint",
+                source=NormalizedEventType.DEPOSIT,
+                destination=NormalizedEventType.PROPOSAL_EVENT,
+                source_key=("correlation_id",),
+                destination_key=("correlation_id",),
+                related_events=(
+                    RelatedEvent(
+                        event_type=NormalizedEventType.TRANSFER,
+                        side="destination",
+                        anchor_side="destination",
+                        anchor_event_type=NormalizedEventType.PROPOSAL_EVENT,
+                    ),
+                ),
+                amount_check=True,
+            ),
+        ),
+        todo=(
+            "TODO: populate the intended recipient on the source Deposit event "
+            "(currently actor_to is NULL in the documented samples) before enabling "
+            "meaningful recipient mismatch detection."
+        ),
+    ),
 }
 
 
@@ -228,19 +289,93 @@ POLYGON_POS_CORE = {
 }
 
 
-NATIVE_TOKENS: dict[str, str] = {
-    "polygon": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
-    "ronin": "TODO",
-    "cctp": "TODO",
-    "ccip": "TODO",
+EVM_NATIVE_TOKEN_CONTRACTS: dict[str, str] = {
+    "base": "0x4200000000000000000000000000000000000006",
+    "optimism": "0x4200000000000000000000000000000000000006",
+    "arbitrum": "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
+    "polygon": "0x0000000000000000000000000000000000000000",
+    "ethereum": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+    "scroll": "0x5300000000000000000000000000000000000004",
+    "linea": "0xe5d7c2a44ffddf6b295a15c148167daaaf5cf34f",
+    "bnb": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c",
+    "avalanche": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7",
+    "gnosis": "0xe91d153e0b41518a2ce8dd3d7944fa863463a97d",
+    "unichain": "0x4200000000000000000000000000000000000006",
+    "moonbeam": "0xacc15dc74880c9944775448304b263d191c6077f",
 }
+
+NULL_NATIVE_TOKEN = "0x0000000000000000000000000000000000000000"
+
+NATIVE_TOKENS: dict[str, dict[str, str]] = {
+    "polygon": {
+        "ethereum": EVM_NATIVE_TOKEN_CONTRACTS["ethereum"],
+    },
+    "omnibridge": {
+        "ethereum": EVM_NATIVE_TOKEN_CONTRACTS["ethereum"],
+        "gnosis": EVM_NATIVE_TOKEN_CONTRACTS["gnosis"],
+    },
+    # Ronin has different source chains for deposits and withdrawals. The
+    # available XChainDataGen metadata identifies Ronin's native asset symbol
+    # but does not provide a contract/sentinel value to compare with token_in.
+    "ronin": {
+        "ethereum": EVM_NATIVE_TOKEN_CONTRACTS["ethereum"],
+    },
+    "cctp": {
+        "ethereum": EVM_NATIVE_TOKEN_CONTRACTS["ethereum"],
+        "base": EVM_NATIVE_TOKEN_CONTRACTS["base"],
+        "optimism": EVM_NATIVE_TOKEN_CONTRACTS["optimism"],
+        "arbitrum": EVM_NATIVE_TOKEN_CONTRACTS["arbitrum"],
+        "polygon": EVM_NATIVE_TOKEN_CONTRACTS["polygon"],
+        "avalanche": EVM_NATIVE_TOKEN_CONTRACTS["avalanche"],
+    },
+    "ccip": EVM_NATIVE_TOKEN_CONTRACTS,
+    "across": {
+        "ethereum": EVM_NATIVE_TOKEN_CONTRACTS["ethereum"],
+        "unichain": EVM_NATIVE_TOKEN_CONTRACTS["unichain"],
+        "arbitrum": EVM_NATIVE_TOKEN_CONTRACTS["arbitrum"],
+        "polygon": EVM_NATIVE_TOKEN_CONTRACTS["polygon"],
+        "optimism": EVM_NATIVE_TOKEN_CONTRACTS["optimism"],
+        "base": EVM_NATIVE_TOKEN_CONTRACTS["base"],
+        "scroll": EVM_NATIVE_TOKEN_CONTRACTS["scroll"],
+        "linea": EVM_NATIVE_TOKEN_CONTRACTS["linea"],
+    },
+    "debridge": {
+        "ethereum": NULL_NATIVE_TOKEN,
+        "optimism": NULL_NATIVE_TOKEN,
+        "arbitrum": NULL_NATIVE_TOKEN,
+        "avalanche": NULL_NATIVE_TOKEN,
+        "base": NULL_NATIVE_TOKEN,
+        "bnb": NULL_NATIVE_TOKEN,
+        "polygon": NULL_NATIVE_TOKEN,
+        "linea": NULL_NATIVE_TOKEN,
+        "solana": NULL_NATIVE_TOKEN,
+    },
+    "mayan": {
+        **EVM_NATIVE_TOKEN_CONTRACTS,
+        "solana": NULL_NATIVE_TOKEN,
+    },
+    "thorchain": {
+        "thorchain": NULL_NATIVE_TOKEN,
+    },
+    "meter.io": EVM_NATIVE_TOKEN_CONTRACTS,
+    "qubit": {
+        "ethereum": NULL_NATIVE_TOKEN,
+    },
+}
+
+# Source event contracts observed in the supplied Thorchain samples.
+# TODO: confirm whether this is a complete allowlist before enforcing it.
+THORCHAIN_OBSERVED_SOURCE_CONTRACTS = (
+    "0x42a5ed456650a09dc10ebc6361a7480fdd61f27b",
+    "0xc145990e84155416144c532e31f89b840ca8c2ce",
+)
 
 
 TOKEN_CONTRACT_ATTACK_CONFIG: dict[str, tuple[TokenContractAttackConfig, ...]] = {
     "polygon": (
         TokenContractAttackConfig(
             event_type=NormalizedEventType.LOCKED_TOKEN,
-            native_token=NATIVE_TOKENS["polygon"],
+            native_tokens=NATIVE_TOKENS["polygon"],
             expected_contracts=(
                 "0x40ec5b33f54e0e8a33a975908c5ba1c14e5bbbdf",
                 "0x8484ef722627bf18ca5ae6bcf031c23e6e922b30",
@@ -255,7 +390,7 @@ TOKEN_CONTRACT_ATTACK_CONFIG: dict[str, tuple[TokenContractAttackConfig, ...]] =
     "ronin": (
         TokenContractAttackConfig(
             event_type=NormalizedEventType.DEPOSIT_REQUESTED,
-            native_token=NATIVE_TOKENS["ronin"],
+            native_tokens=NATIVE_TOKENS["ronin"],
             expected_contracts=("0x64192819ac13ef72bf6b5ae239ac672b43a9af08",),
             correlation_type="ronin_token_contract_attack",
             event_label="DepositRequested",
@@ -265,7 +400,7 @@ TOKEN_CONTRACT_ATTACK_CONFIG: dict[str, tuple[TokenContractAttackConfig, ...]] =
         ),
         TokenContractAttackConfig(
             event_type=NormalizedEventType.WITHDRAWAL_REQUESTED,
-            native_token=NATIVE_TOKENS["ronin"],
+            native_tokens=NATIVE_TOKENS["ronin"],
             expected_contracts=("0x0cf8ff40a508bdbc39fbe1bb679dcba64e65c7df",),
             correlation_type="ronin_token_contract_attack",
             event_label="WithdrawalRequested",
@@ -277,7 +412,7 @@ TOKEN_CONTRACT_ATTACK_CONFIG: dict[str, tuple[TokenContractAttackConfig, ...]] =
     "cctp": (
         TokenContractAttackConfig(
             event_type=NormalizedEventType.DEPOSIT_FOR_BURN,
-            native_token=NATIVE_TOKENS["cctp"],
+            native_tokens=NATIVE_TOKENS["cctp"],
             expected_contracts=(
                 "0xbd3fa81b58ba92a82136038b25adec7066af3155",
                 "0x19330d10d9cc8751218eaf51e8885d058642e08a",
@@ -296,7 +431,7 @@ TOKEN_CONTRACT_ATTACK_CONFIG: dict[str, tuple[TokenContractAttackConfig, ...]] =
     "ccip": (
         TokenContractAttackConfig(
             event_type=NormalizedEventType.MESSAGE_SENT,
-            native_token=NATIVE_TOKENS["ccip"],
+            native_tokens=NATIVE_TOKENS["ccip"],
             expected_contracts=(
                 "0x69ecc4e2d8ea56e2d0a05bf57f4fd6aee7f2c284",
                 "0xafd31c0c78785adf53e4c185670bfd5376249d8a",
@@ -327,6 +462,118 @@ TOKEN_CONTRACT_ATTACK_CONFIG: dict[str, tuple[TokenContractAttackConfig, ...]] =
             actor_label="sender",
             amount_label="MessageSent amount",
             title="ccip: MessageSent failed token contract checks",
+        ),
+    ),
+    "across": (
+        TokenContractAttackConfig(
+            event_type=NormalizedEventType.DEPOSIT_INTENT,
+            native_tokens=NATIVE_TOKENS["across"],
+            expected_contracts=(
+                "0x5c7bcd6e7de5423a257d81b442095a1a6ced35c5",
+                "0x09aea4b2242abc8bb4bb78d537a67a245a7bec64",
+                "0xe35e9842fceaca96570b734083f4a58e8f7c5f2a",
+                "0x9295ee1d8c5b022be115a2ad3c30c72e34e7f096",
+                "0x6f26bf09b1c792e3228e5467807a900a503c0281",
+                "0x3bad7ad0728f9917d1bf08af5782dcbd516cdd96",
+                "0x7e63a5f1a8f0b4d0934b2f2327daed3f6bb2ee75",
+            ),
+            correlation_type="across_token_contract_attack",
+            event_label="DepositIntent",
+            actor_label="depositor",
+            amount_label="input amount",
+            title="across: DepositIntent failed token contract checks",
+        ),
+    ),
+    "debridge": (
+        TokenContractAttackConfig(
+            event_type=NormalizedEventType.ORDER_CREATED,
+            native_tokens=NATIVE_TOKENS["debridge"],
+            expected_contracts=("0xef4fb24ad0916217251f553c0596f8edc630eb66",),
+            correlation_type="debridge_token_contract_attack",
+            event_label="OrderCreated",
+            actor_label="maker",
+            amount_label="give amount",
+            title="debridge: OrderCreated failed token contract checks",
+        ),
+    ),
+    "omnibridge": (
+        TokenContractAttackConfig(
+            event_type=NormalizedEventType.BRIDGING_INITIATED,
+            native_tokens=NATIVE_TOKENS["omnibridge"],
+            expected_contracts=(
+                "0x88ad09518695c6c3712ac10a214be5109a655671",
+                "0xf6a78083ca3e2a662d6dd1703c939c8ace2e268d",
+            ),
+            correlation_type="omnibridge_token_contract_attack",
+            event_label="TokensBridgingInitiated",
+            actor_label="sender",
+            amount_label="bridged amount",
+            title="omnibridge: TokensBridgingInitiated failed token contract checks",
+        ),
+    ),
+    "mayan": (
+        TokenContractAttackConfig(
+            event_type=NormalizedEventType.SWAP_AND_FORWARDED,
+            native_tokens=NATIVE_TOKENS["mayan"],
+            expected_contracts=(
+                "0x337685fdab40d39bd02028545a4ffa7d287cc3e2",
+                "0x0654874eb7f59c6f5b39931fc45dc45337c967c3",
+            ),
+            correlation_type="mayan_token_contract_attack",
+            event_label="SwapAndForwarded",
+            actor_label="sender",
+            amount_label="input amount",
+            title="mayan: SwapAndForwarded failed token contract checks",
+        ),
+        TokenContractAttackConfig(
+            event_type=NormalizedEventType.FORWARDED,
+            native_tokens=NATIVE_TOKENS["mayan"],
+            expected_contracts=(
+                "0x337685fdab40d39bd02028545a4ffa7d287cc3e2",
+                "0x0654874eb7f59c6f5b39931fc45dc45337c967c3",
+            ),
+            correlation_type="mayan_token_contract_attack",
+            event_label="Forwarded",
+            actor_label="sender",
+            amount_label="forwarded amount",
+            title="mayan: Forwarded failed token contract checks",
+        ),
+        TokenContractAttackConfig(
+            event_type=NormalizedEventType.INIT_ORDER,
+            native_tokens=NATIVE_TOKENS["mayan"],
+            expected_contracts=("0xc38e4e6a15593f908255214653d3d947ca1c2338",),
+            correlation_type="mayan_token_contract_attack",
+            event_label="InitOrder",
+            actor_label="sender",
+            amount_label="source amount",
+            title="mayan: InitOrder failed token contract checks",
+        ),
+    ),
+    "meter.io": (
+        TokenContractAttackConfig(
+            event_type=NormalizedEventType.DEPOSIT,
+            native_tokens=NATIVE_TOKENS["meter.io"],
+            expected_contracts=(
+                "0xfd55ebc7bbde603a048648c6eab8775c997c1001",
+                "0xa2a22b46b8df38cd7c55e6bf32ea5a32637cf2b1",
+            ),
+            correlation_type="meter_io_token_contract_attack",
+            event_label="Deposit",
+            actor_label="sender",
+            amount_label="deposit amount",
+            title="meter.io: Deposit failed token contract checks",
+        ),
+    ),
+    "qubit": (
+        TokenContractAttackConfig(
+            event_type=NormalizedEventType.DEPOSIT,
+            native_tokens=NATIVE_TOKENS["qubit"],
+            expected_contracts=("0x20e5e35ba29dc3b540a1aee781d0814d5c77bce6",),
+            correlation_type="qubit_token_contract_attack",
+            event_label="Deposit",
+            actor_label="sender",
+            amount_label="deposit amount",
+            title="qubit: Deposit failed token contract checks",
         ),
     ),
 }
@@ -369,7 +616,53 @@ VERIFIED_CONTRACTS: dict[str, dict[str, dict[NormalizedEventType, tuple[str, ...
             NormalizedEventType.TOKEN_WITHDREW: ("0x64192819ac13ef72bf6b5ae239ac672b43a9af08",),
         },
     },
-    "omnibridge": {},
+    "omnibridge": {
+        "token_bridge": {
+            NormalizedEventType.BRIDGING_INITIATED: (
+                "0x88ad09518695c6c3712ac10a214be5109a655671",
+                "0xf6a78083ca3e2a662d6dd1703c939c8ace2e268d",
+            ),
+            NormalizedEventType.TOKENS_BRIDGED: (
+                "0x88ad09518695c6c3712ac10a214be5109a655671",
+                "0xf6a78083ca3e2a662d6dd1703c939c8ace2e268d",
+            ),
+        },
+        "amb_eth": {
+            NormalizedEventType.USER_REQUEST_FOR_AFFIRMATION: (
+                "0x4c36d2919e407f0cc2ee3c993ccf8ac26d9ce64e",
+            ),
+        },
+        "xdai_bridge_eth": {
+            NormalizedEventType.USER_REQUEST_FOR_AFFIRMATION: (
+                "0x4aa42145aa6ebf72e164c9bbc74fbd3788045016",
+            ),
+            NormalizedEventType.RELAYED_MESSAGE: (
+                "0x4aa42145aa6ebf72e164c9bbc74fbd3788045016",
+            ),
+        },
+        "amb_gnosis": {
+            NormalizedEventType.USER_REQUEST_FOR_SIGNATURE: (
+                "0x75df5af045d91108662d8080fd1fefad6aa0bb59",
+            ),
+            NormalizedEventType.SIGNED_FOR_USER_REQUEST: (
+                "0x75df5af045d91108662d8080fd1fefad6aa0bb59",
+            ),
+            NormalizedEventType.SIGNED_FOR_AFFIRMATION: (
+                "0x75df5af045d91108662d8080fd1fefad6aa0bb59",
+            ),
+        },
+        "xdai_bridge_gnosis": {
+            NormalizedEventType.USER_REQUEST_FOR_SIGNATURE: (
+                "0x7301cfa0e1756b71869e93d4e4dca5c7d0eb0aa6",
+            ),
+            NormalizedEventType.SIGNED_FOR_AFFIRMATION: (
+                "0x7301cfa0e1756b71869e93d4e4dca5c7d0eb0aa6",
+            ),
+            NormalizedEventType.AFFIRMATION_COMPLETED: (
+                "0x7301cfa0e1756b71869e93d4e4dca5c7d0eb0aa6",
+            ),
+        },
+    },
     "ccip": {
         "message_execution": {
             NormalizedEventType.MESSAGE_SENT: (
@@ -549,9 +842,59 @@ VERIFIED_CONTRACTS: dict[str, dict[str, dict[NormalizedEventType, tuple[str, ...
             ),
         },
     },
-    "mayan": {},
-    "debridge": {},
+    "mayan": {
+        "swift_order": {
+            NormalizedEventType.ORDER_CREATED: ("0xc38e4e6a15593f908255214653d3d947ca1c2338",),
+            NormalizedEventType.ORDER_FULFILLED: ("0xc38e4e6a15593f908255214653d3d947ca1c2338",),
+            NormalizedEventType.ORDER_UNLOCKED: ("0xc38e4e6a15593f908255214653d3d947ca1c2338",),
+        },
+        "forwarder": {
+            NormalizedEventType.SWAP_AND_FORWARDED: (
+                "0x337685fdab40d39bd02028545a4ffa7d287cc3e2",
+                "0x0654874eb7f59c6f5b39931fc45dc45337c967c3",
+            ),
+            NormalizedEventType.FORWARDED: (
+                "0x337685fdab40d39bd02028545a4ffa7d287cc3e2",
+                "0x0654874eb7f59c6f5b39931fc45dc45337c967c3",
+            ),
+        },
+    },
+    "debridge": {
+        "source_order": {
+            NormalizedEventType.ORDER_CREATED: ("0xef4fb24ad0916217251f553c0596f8edc630eb66",),
+            NormalizedEventType.CLAIMED_UNLOCK: ("0xef4fb24ad0916217251f553c0596f8edc630eb66",),
+        },
+        "destination_order": {
+            NormalizedEventType.ORDER_FULFILLED: ("0xe7351fd770a37282b91d153ee690b63579d6dd7f",),
+        },
+    },
     "stargate": {},
+    "thorchain": {},
+    "meter.io": {
+        "deposit_execution": {
+            NormalizedEventType.DEPOSIT: (
+                "0xfd55ebc7bbde603a048648c6eab8775c997c1001",
+                "0xa2a22b46b8df38cd7c55e6bf32ea5a32637cf2b1",
+            ),
+            NormalizedEventType.PROPOSAL_EVENT: (
+                "0xf41e7fc4ec990298d36f667b93951c9dba65224e",
+                "0xa2a22b46b8df38cd7c55e6bf32ea5a32637cf2b1",
+                "0xfd55ebc7bbde603a048648c6eab8775c997c1001",
+            ),
+            NormalizedEventType.TRANSFER: (
+                "0x868892cccedbff0b028f3b3595205ea91b99376b",
+                "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+            ),
+            NormalizedEventType.INTERNAL_TRANSFER: ("0xfd55ebc7bbde603a048648c6eab8775c997c1001",),
+        },
+    },
+    "qubit": {
+        "deposit_mint": {
+            NormalizedEventType.DEPOSIT: ("0x20e5e35ba29dc3b540a1aee781d0814d5c77bce6",),
+            NormalizedEventType.PROPOSAL_EVENT: ("0x4d8ae68fcae98bf93299548545933c0d273ba23a",),
+            NormalizedEventType.TRANSFER: ("0x2f422fe9ea622049d6f73f81a906b9b8cff03b7f",),
+        },
+    },
 }
 
 
@@ -565,6 +908,9 @@ class Bridges(Enum):  # supported bridges
     OMNIBRIDGE = "omnibridge"
     DEBRIDGE = "debridge"
     MAYAN = "mayan"
+    THORCHAIN = "thorchain"
+    METER_IO = "meter.io"
+    QUBIT = "qubit"
 
 
 TIME_THRESHOLDS = {
@@ -575,6 +921,8 @@ TIME_THRESHOLDS = {
     Bridges.CCIP.value: 3600,  # 1 hour
     Bridges.CCTP.value: 3600,  # 1 hour
     Bridges.ACROSS.value: 3600,  # 1 hour
+    Bridges.METER_IO.value: 3600,  # TODO: confirm expected bridge latency
+    Bridges.QUBIT.value: 3600,  # TODO: confirm expected bridge latency
 }
 
 BlockConfirmationThresholds = {
@@ -584,4 +932,6 @@ BlockConfirmationThresholds = {
     Bridges.CCIP.value: 20,
     Bridges.CCTP.value: 20,
     Bridges.ACROSS.value: 20,
+    Bridges.METER_IO.value: 20,  # TODO: use per-chain confirmation thresholds
+    Bridges.QUBIT.value: 20,  # TODO: use per-chain confirmation thresholds
 }

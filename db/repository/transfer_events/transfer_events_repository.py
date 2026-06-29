@@ -3,6 +3,63 @@ from db.repository.bridge_tables.ccip import CCIPTransfer
 from db.repository.bridge_tables.cctp import CCTPTransfer
 from db.repository.bridge_tables.polygon import PolygonTransfer
 from db.repository.bridge_tables.ronin import RoninTransfer
+from types import SimpleNamespace
+
+from sqlalchemy import text
+
+
+class GenericTransferRepository:
+    def __init__(self, table_name: str):
+        self.table_name = table_name
+
+    def get_all(self) -> list[SimpleNamespace]:
+        session = get_session()
+        try:
+            rows = session.execute(
+                text(
+                    f"""
+                    SELECT
+                        blockchain,
+                        transaction_hash,
+                        block_number,
+                        log_index,
+                        token_address,
+                        from_address,
+                        to_address,
+                        amount
+                    FROM {self.table_name}
+                    """
+                )
+            ).mappings()
+            return [SimpleNamespace(**row) for row in rows]
+        finally:
+            session.close()
+
+    def get_by_transaction_hash(self, transaction_hash: str) -> list[SimpleNamespace]:
+        session = get_session()
+        try:
+            rows = session.execute(
+                text(
+                    f"""
+                    SELECT
+                        blockchain,
+                        transaction_hash,
+                        block_number,
+                        log_index,
+                        token_address,
+                        from_address,
+                        to_address,
+                        amount
+                    FROM {self.table_name}
+                    WHERE transaction_hash = :transaction_hash
+                    ORDER BY log_index
+                    """
+                ),
+                {"transaction_hash": transaction_hash},
+            ).mappings()
+            return [SimpleNamespace(**row) for row in rows]
+        finally:
+            session.close()
 
 
 class CCIPTransferRepository:

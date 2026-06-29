@@ -5,6 +5,7 @@ from db.repository.normalized_event.normalized_event_model import NormalizedEven
 from db.repository.transfer_events.transfer_events_repository import (
     CCIPTransferRepository,
     CCTPTransferRepository,
+    GenericTransferRepository,
     PolygonTransferRepository,
     RoninTransferRepository,
 )
@@ -16,9 +17,15 @@ from signature_detection.constants import (
 )
 
 TRANSFER_REPOSITORIES = {
+    "across": GenericTransferRepository("across_transfers"),
     "ccip": CCIPTransferRepository,
     "cctp": CCTPTransferRepository,
+    "debridge": GenericTransferRepository("debridge_transfers"),
+    "mayan": GenericTransferRepository("mayan_transfers"),
+    "meter.io": GenericTransferRepository("meter_io_transfers"),
+    "omnibridge": GenericTransferRepository("omnibridge_transfers"),
     "polygon": PolygonTransferRepository,
+    "qubit": GenericTransferRepository("qubit_transfers"),
     "ronin": RoninTransferRepository,
 }
 
@@ -145,7 +152,14 @@ class TokenContractAttacksMixin:
         event: NormalizedEvent,
         config: TokenContractAttackConfig,
     ) -> bool:
-        return self._normalized_value(event.token_in) == self._normalized_value(config.native_token)
+        blockchain = self._normalized_value(event.blockchain) or self._normalized_value(
+            event.src_blockchain
+        )
+        native_token = config.native_tokens.get(blockchain) if blockchain else None
+        if native_token is None:
+            return False
+
+        return self._normalized_value(event.token_in) == self._normalized_value(native_token)
 
     def _expected_contract_values(self, config: TokenContractAttackConfig) -> set[str]:
         return {contract.lower() for contract in config.expected_contracts}

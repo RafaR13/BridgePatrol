@@ -155,6 +155,15 @@ class CcipNormalizedEvent(NormalizedEvent):
 class AcrossNormalizedEvent(NormalizedEvent):
     __tablename__ = "across_normalized_event"
 
+class ThorchainNormalizedEvent(NormalizedEvent):
+    __tablename__ = "thorchain_normalized_event"
+
+class MeterIoNormalizedEvent(NormalizedEvent):
+    __tablename__ = "meter_io_normalized_event"
+
+class QubitNormalizedEvent(NormalizedEvent):
+    __tablename__ = "qubit_normalized_event"
+
 
 BRIDGE_NORMALIZED_EVENT_MODELS = {
     "across": AcrossNormalizedEvent,
@@ -165,6 +174,9 @@ BRIDGE_NORMALIZED_EVENT_MODELS = {
     "omnibridge": OmnibridgeNormalizedEvent,
     "polygon": PolygonNormalizedEvent,
     "ronin": RoninNormalizedEvent,
+    "thorchain": ThorchainNormalizedEvent,
+    "meter.io": MeterIoNormalizedEvent,
+    "qubit": QubitNormalizedEvent,
 }
 
 

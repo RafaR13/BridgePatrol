@@ -6,6 +6,12 @@ from enum import Enum
 class NormalizedEventType(str, Enum):
     TX = "TX"
 
+    # manually ingested bridge events
+    DEPOSIT = "Deposit"
+    TRANSFER = "Transfer"
+    INTERNAL_TRANSFER = "InternalTransfer"
+    PROPOSAL_EVENT = "ProposalEvent"
+
     # across
     DEPOSIT_INTENT = "DEPOSIT_INTENT"
     FILL_EXECUTED = "FILL_EXECUTED"
