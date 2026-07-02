@@ -53,8 +53,10 @@ class UnauthorizedContractsMixin:
                             )
                             if not verified_contracts:
                                 continue
-                            if self._contract_is_verified(event, verified_contracts):
-                                continue
+
+                            # Skipping for now
+                            # if self._contract_is_verified(event, verified_contracts):
+                            #    continue
 
                             alert_key = (flow.name, event.id, side, correlation_id)
                             if alert_key in seen_alerts:

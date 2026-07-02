@@ -9,10 +9,11 @@ def to_str(value):
 
 
 def event_contract_address(row, tx_ctx):
-    address = getattr(row, "address", None)
-    if address:
-        return address
-    return tx_ctx.to_address if tx_ctx else None
+    return None
+    # address = getattr(row, "address", None)
+    # if address:
+    #    return address
+    # return tx_ctx.to_address if tx_ctx else None
 
 
 def to_json(data: dict) -> str:

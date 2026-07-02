@@ -10,7 +10,7 @@ class DeBridgeCreatedOrder(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(88), nullable=False)
-    address = Column(String(128), nullable=True)
+    # address = Column(String(128), nullable=True)
     maker_order_nonce = Column(Numeric(30, 0), nullable=False)
     maker_src = Column(String(44), nullable=False)
     src_blockchain = Column(String(10), nullable=False)
@@ -42,7 +42,7 @@ class DeBridgeFulfilledOrder(Base):
 
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(88), nullable=False)
-    address = Column(String(128), nullable=True)
+    # address = Column(String(128), nullable=True)
     maker_order_nonce = Column(Numeric(30, 0), nullable=False)
     maker_src = Column(String(44), nullable=False)
     src_blockchain = Column(String(10), nullable=False)
@@ -70,7 +70,7 @@ class DeBridgeClaimedUnlock(Base):
 
     blockchain = Column(String(10), nullable=False)
     transaction_hash = Column(String(88), nullable=False)
-    address = Column(String(128), nullable=True)
+    # address = Column(String(128), nullable=True)
     order_id = Column(String(66), nullable=False, primary_key=True)
     beneficiary = Column(String(44), nullable=False)
     give_amount = Column(Numeric(30, 0), nullable=False)
