@@ -43,6 +43,17 @@ class PolygonAnalyser(Analyser):
         alerts.extend(self.token_contract_attacks())
         return alerts
 
+    def bridge_specific_signature_checks(self):
+        return (
+            (
+                "state_synced_contract_authorization",
+                self.state_synced_contract_authorization,
+                (),
+            ),
+            ("token_mappings", self.token_mappings, ()),
+            ("token_contract_attacks", self.token_contract_attacks, ()),
+        )
+
     def _state_synced_payload_contract_address(self, event):
         if event.actor_to:
             return event.actor_to

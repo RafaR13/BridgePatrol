@@ -7,6 +7,12 @@ from db.repository.bridge_tables.cctp import CCTPBlockchainTransactions
 from db.repository.bridge_tables.debridge import DeBridgeBlockchainTransactions
 from db.repository.bridge_tables.mayan import MayanBlockchainTransactions
 from db.repository.bridge_tables.omnibridge import OmnibridgeBlockchainTransactions
+from db.repository.bridge_tables.manual import (
+    MeterIoBlockchainTransactions,
+    QubitBlockchainTransactions,
+    ThorchainBlockchainTransactions,
+    WormholeBlockchainTransactions,
+)
 
 
 class RoninBlockchainTransactionRepository:
@@ -91,5 +97,41 @@ class OmnibridgeBlockchainTransactionRepository:
         session = get_session()
         try:
             return session.query(OmnibridgeBlockchainTransactions).all()
+        finally:
+            session.close()
+
+
+class MeterIoBlockchainTransactionRepository:
+    def get_all() -> list[MeterIoBlockchainTransactions]:
+        session = get_session()
+        try:
+            return session.query(MeterIoBlockchainTransactions).all()
+        finally:
+            session.close()
+
+
+class QubitBlockchainTransactionRepository:
+    def get_all() -> list[QubitBlockchainTransactions]:
+        session = get_session()
+        try:
+            return session.query(QubitBlockchainTransactions).all()
+        finally:
+            session.close()
+
+
+class ThorchainBlockchainTransactionRepository:
+    def get_all() -> list[ThorchainBlockchainTransactions]:
+        session = get_session()
+        try:
+            return session.query(ThorchainBlockchainTransactions).all()
+        finally:
+            session.close()
+
+
+class WormholeBlockchainTransactionRepository:
+    def get_all() -> list[WormholeBlockchainTransactions]:
+        session = get_session()
+        try:
+            return session.query(WormholeBlockchainTransactions).all()
         finally:
             session.close()

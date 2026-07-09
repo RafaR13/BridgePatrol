@@ -46,6 +46,13 @@ class RoninAnalyser(Analyser):
         alerts.extend(self.token_contract_attacks())
         return alerts
 
+    def bridge_specific_signature_checks(self):
+        return (
+            ("contract_discrepancies", self.contract_discrepancies, ()),
+            ("ronin_proofs", self.analyse_ronin_proofs, ()),
+            ("token_contract_attacks", self.token_contract_attacks, ()),
+        )
+
     def _normalized_value(self, value):
         if value is None:
             return None

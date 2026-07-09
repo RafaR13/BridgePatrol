@@ -1,4 +1,7 @@
 from db.repository.detection_alert.detection_alert_model import DetectionAlert
+from db.repository.blockchain_transactions.blockchain_transactions_repository import (
+    ThorchainBlockchainTransactionRepository,
+)
 
 from .analyser import Analyser
 
@@ -8,8 +11,7 @@ class ThorchainAnalyser(Analyser):
         super().__init__("thorchain")
 
     def fetch_blockchain_transactions(self):
-        # TODO: fetch manually inserted Thorchain blockchain transactions.
-        return []
+        return ThorchainBlockchainTransactionRepository.get_all()
 
     def analyse_bridge_specific_signatures(self) -> list[DetectionAlert]:
         # TODO: validate source vault, memo, asset and amount semantics.
@@ -40,13 +42,46 @@ class ThorchainAnalyser(Analyser):
         self._set_analysis_window(start_ts=start_ts, end_ts=end_ts)
         alerts: list[DetectionAlert] = []
 
-        # Source transaction / token consistency checks.
-        alerts.extend(self.token_contract_attacks())
+        total_timer = (
+            self.evaluation_reporter.timer(
+                "signature_detection_total_timer",
+                {"bridge": self.bridge, "start_ts": start_ts, "end_ts": end_ts},
+            )
+            if self.evaluation_reporter is not None
+            else None
+        )
 
-        # Source traces can still reveal CREATE/CREATE2/SELFDESTRUCT operations.
-        alerts.extend(self.analyse_source_trace_operations())
+        from contextlib import nullcontext
 
-        # This currently contains no checks, but is the extension point for
-        # Thorchain source-only signatures (vault, memo, asset, etc.).
-        alerts.extend(self.analyse_bridge_specific_signatures())
+        with total_timer if total_timer is not None else nullcontext({}):
+            # Source transaction / token consistency checks.
+            alerts.extend(
+                self._run_signature_check(
+                    "token_contract_attacks",
+                    self.token_contract_attacks,
+                )
+            )
+
+            # Source traces can still reveal CREATE/CREATE2/SELFDESTRUCT operations.
+            alerts.extend(
+                self._run_signature_check(
+                    "source_trace_operations",
+                    self.analyse_source_trace_operations,
+                )
+            )
+
+            # Extension point for Thorchain source-only signatures.
+            for check_name, check_fn, check_args in self.bridge_specific_signature_checks():
+                alerts.extend(self._run_signature_check(check_name, check_fn, *check_args))
+
+        if self.evaluation_reporter is not None:
+            self.evaluation_reporter.write(
+                "signature_detection_summary",
+                {
+                    "bridge": self.bridge,
+                    "start_ts": start_ts,
+                    "end_ts": end_ts,
+                    "alerts_detected": len(alerts),
+                },
+            )
         return alerts

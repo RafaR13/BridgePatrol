@@ -1,4 +1,7 @@
 from db.repository.detection_alert.detection_alert_model import DetectionAlert
+from db.repository.blockchain_transactions.blockchain_transactions_repository import (
+    MeterIoBlockchainTransactionRepository,
+)
 
 from .analyser import Analyser
 
@@ -8,8 +11,7 @@ class MeterIoAnalyser(Analyser):
         super().__init__("meter.io")
 
     def fetch_blockchain_transactions(self):
-        # TODO: fetch manually inserted Meter.io blockchain transactions.
-        return []
+        return MeterIoBlockchainTransactionRepository.get_all()
 
     def analyse_bridge_specific_signatures(self) -> list[DetectionAlert]:
         # TODO: implement Meter.io-specific signatures.

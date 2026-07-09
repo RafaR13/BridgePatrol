@@ -6,6 +6,7 @@ from db.repository.bridge_tables.ronin import RoninTransfer
 from types import SimpleNamespace
 
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 
 class GenericTransferRepository:
@@ -32,6 +33,8 @@ class GenericTransferRepository:
                 )
             ).mappings()
             return [SimpleNamespace(**row) for row in rows]
+        except (OperationalError, ProgrammingError):
+            return []
         finally:
             session.close()
 
@@ -58,6 +61,8 @@ class GenericTransferRepository:
                 {"transaction_hash": transaction_hash},
             ).mappings()
             return [SimpleNamespace(**row) for row in rows]
+        except (OperationalError, ProgrammingError):
+            return []
         finally:
             session.close()
 

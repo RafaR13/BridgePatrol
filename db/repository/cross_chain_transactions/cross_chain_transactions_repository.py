@@ -7,6 +7,12 @@ from db.repository.bridge_tables.cctp import CCTPCrossChainTransactions
 from db.repository.bridge_tables.debridge import DeBridgeCrossChainTransactions
 from db.repository.bridge_tables.mayan import MayanCrossChainTransactions
 from db.repository.bridge_tables.omnibridge import OmnibridgeCrossChainTransactions
+from db.repository.bridge_tables.manual import (
+    MeterIoCrossChainTransactions,
+    QubitCrossChainTransactions,
+    ThorchainCrossChainTransactions,
+    WormholeCrossChainTransactions,
+)
 
 class RoninCrossChainTransactionRepository:
     def get_all() -> list[RoninCrossChainTransactions]:
@@ -96,5 +102,41 @@ class OmnibridgeCrossChainTransactionRepository:
                 session.query(OmnibridgeCrossChainTransactions)
                 .all()
             )
+        finally:
+            session.close()
+
+
+class MeterIoCrossChainTransactionRepository:
+    def get_all() -> list[MeterIoCrossChainTransactions]:
+        session = get_session()
+        try:
+            return session.query(MeterIoCrossChainTransactions).all()
+        finally:
+            session.close()
+
+
+class QubitCrossChainTransactionRepository:
+    def get_all() -> list[QubitCrossChainTransactions]:
+        session = get_session()
+        try:
+            return session.query(QubitCrossChainTransactions).all()
+        finally:
+            session.close()
+
+
+class ThorchainCrossChainTransactionRepository:
+    def get_all() -> list[ThorchainCrossChainTransactions]:
+        session = get_session()
+        try:
+            return session.query(ThorchainCrossChainTransactions).all()
+        finally:
+            session.close()
+
+
+class WormholeCrossChainTransactionRepository:
+    def get_all() -> list[WormholeCrossChainTransactions]:
+        session = get_session()
+        try:
+            return session.query(WormholeCrossChainTransactions).all()
         finally:
             session.close()

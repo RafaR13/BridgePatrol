@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import List
 
 from db.repository.detection_alert.detection_alert_model import DetectionAlert
+from evaluation.reporting import EvaluationReporter
 from signature_detection.constants import (
     AlertSeverity,
     SignatureType,
@@ -38,7 +39,7 @@ class Analyser(
     AnalyserUtilsMixin,
     ABC,
 ):
-    DEBUG = True
+    DEBUG = False
     DEBUG_TRANSACTION_HASH: str | None = None
 
     def __init__(self, bridge: str):
@@ -47,6 +48,7 @@ class Analyser(
         self._analysis_start_ts: int | None = None
         self._analysis_end_ts: int | None = None
         self._analysis_has_time_filter = False
+        self.evaluation_reporter: EvaluationReporter | None = None
 
     def _debug(self, message: str) -> None:
         if self.DEBUG:
@@ -61,6 +63,11 @@ class Analyser(
         """Run checks that only apply to this bridge."""
         pass
 
+    def bridge_specific_signature_checks(self):
+        return (
+            ("bridge_specific_signatures", self.analyse_bridge_specific_signatures, ()),
+        )
+
     def analyse_all(
         self, start_ts: int | None = None, end_ts: int | None = None
     ) -> List[DetectionAlert]:
@@ -70,31 +77,79 @@ class Analyser(
         self._set_analysis_window(start_ts=start_ts, end_ts=end_ts)
         alerts: List[DetectionAlert] = []
 
-        # Missing event pairs
-        alerts.extend(self.lock_without_mint(self.bridge))
-        alerts.extend(self.mint_without_lock(self.bridge))
+        total_timer = (
+            self.evaluation_reporter.timer(
+                "signature_detection_total_timer",
+                {"bridge": self.bridge, "start_ts": start_ts, "end_ts": end_ts},
+            )
+            if self.evaluation_reporter is not None
+            else None
+        )
 
-        # Recipient Mismatch
-        alerts.extend(self.recipient_mismatch(self.bridge))
+        from contextlib import nullcontext
 
-        # Tokens
-        alerts.extend(self.amount_mismatch(self.bridge))
-        alerts.extend(self.over_mint(self.bridge))
-        alerts.extend(self.over_release(self.bridge))
+        with total_timer if total_timer is not None else nullcontext({}):
+            # Missing event pairs
+            alerts.extend(self._run_signature_check("lock_without_mint", self.lock_without_mint, self.bridge))
+            alerts.extend(self._run_signature_check("mint_without_lock", self.mint_without_lock, self.bridge))
 
-        # Contract authorization
-        alerts.extend(self.unauthorized_contracts(self.bridge))
+            # Recipient Mismatch
+            alerts.extend(self._run_signature_check("recipient_mismatch", self.recipient_mismatch, self.bridge))
 
-        # Event callers
-        alerts.extend(self.check_event_callers())
+            # Tokens
+            alerts.extend(self._run_signature_check("amount_mismatch", self.amount_mismatch, self.bridge))
+            alerts.extend(self._run_signature_check("over_mint", self.over_mint, self.bridge))
+            alerts.extend(self._run_signature_check("over_release", self.over_release, self.bridge))
 
-        # Replay / duplicate execution
-        for flow_type in ("deposits", "withdrawals"):
-            for flow in self._configured_flows(self.bridge, flow_type):
-                alerts.extend(self.detect_replays(self.bridge, flow))
+            # Contract authorization
+            alerts.extend(self._run_signature_check("unauthorized_contracts", self.unauthorized_contracts, self.bridge))
 
-        # Bridge-specific checks
-        alerts.extend(self.analyse_bridge_specific_signatures())
+            # Event callers
+            alerts.extend(self._run_signature_check("check_event_callers", self.check_event_callers))
+
+            # Replay / duplicate execution
+            for flow_type in ("deposits", "withdrawals"):
+                for flow in self._configured_flows(self.bridge, flow_type):
+                    alerts.extend(
+                        self._run_signature_check(
+                            f"detect_replays.{flow_type}.{flow.name}",
+                            self.detect_replays,
+                            self.bridge,
+                            flow,
+                        )
+                    )
+
+            # Bridge-specific checks
+            for check_name, check_fn, check_args in self.bridge_specific_signature_checks():
+                alerts.extend(
+                    self._run_signature_check(
+                        check_name,
+                        check_fn,
+                        *check_args,
+                    )
+                )
+        if self.evaluation_reporter is not None:
+            self.evaluation_reporter.write(
+                "signature_detection_summary",
+                {
+                    "bridge": self.bridge,
+                    "start_ts": start_ts,
+                    "end_ts": end_ts,
+                    "alerts_detected": len(alerts),
+                },
+            )
+        return alerts
+
+    def _run_signature_check(self, check_name: str, check_fn, *args) -> List[DetectionAlert]:
+        if self.evaluation_reporter is None:
+            return check_fn(*args)
+
+        with self.evaluation_reporter.timer(
+            "signature_check_timer",
+            {"bridge": self.bridge, "signature_check": check_name},
+        ) as payload:
+            alerts = check_fn(*args)
+            payload["alerts_detected"] = len(alerts)
         return alerts
 
     def create_detection_alert(

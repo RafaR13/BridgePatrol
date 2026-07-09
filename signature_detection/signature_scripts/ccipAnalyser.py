@@ -30,6 +30,9 @@ class CCIPAnalyser(Analyser):
     def analyse_bridge_specific_signatures(self) -> list[DetectionAlert]:
         return self.token_contract_attacks()
 
+    def bridge_specific_signature_checks(self):
+        return (("token_contract_attacks", self.token_contract_attacks, ()),)
+
     def _normalized_value(self, value):
         if value is None:
             return None

@@ -19,6 +19,8 @@ class CliArgs:
     need_extraction: bool
     need_normalization: bool
     store_alerts: bool
+    evaluation_report: str | None
+    evaluation_run_id: str | None
 
 
 class Cli:
@@ -69,6 +71,8 @@ class Cli:
         p.add_argument("--need-extraction", help="Whether to run the extraction phase (default: False)", action="store_true")
         p.add_argument("--need-normalization", help="Whether to run the normalization phase (default: False)", action="store_true")
         p.add_argument("--store-alerts", help="Whether to store generated alerts in the database (default: False)", action="store_true")
+        p.add_argument("--evaluation-report", required=False, help="Optional JSONL file for evaluation timings and summaries")
+        p.add_argument("--evaluation-run-id", required=False, help="Optional run id to group evaluation records")
 
     def parse(argv: Optional[List[str]] = None) -> CliArgs:
         parser = Cli._build_parser()
@@ -90,7 +94,9 @@ class Cli:
             end_ts=ns.end_ts,
             need_extraction=ns.need_extraction if hasattr(ns, "need_extraction") else False,
             need_normalization=ns.need_normalization if hasattr(ns, "need_normalization") else False,
-            store_alerts=ns.store_alerts if hasattr(ns, "store_alerts") else False
+            store_alerts=ns.store_alerts if hasattr(ns, "store_alerts") else False,
+            evaluation_report=ns.evaluation_report,
+            evaluation_run_id=ns.evaluation_run_id,
         )
 
     def run() -> int:
@@ -139,7 +145,11 @@ class Cli:
         # normalize logs and receipts
         if args.need_normalization:
             print("Running normalization phase...\n")
-            run_normalization_for_bridge(args.bridge)
+            run_normalization_for_bridge(
+                args.bridge,
+                report_path=args.evaluation_report,
+                run_id=args.evaluation_run_id,
+            )
             print("Normalization phase completed.\n")
 
         # run signature detection
@@ -150,9 +160,11 @@ class Cli:
             start_ts=analysis_start_ts,
             end_ts=analysis_end_ts,
             persist=args.store_alerts,
+            report_path=args.evaluation_report,
+            run_id=args.evaluation_run_id,
         )
         for alert in alerts:
-            print(alert + "\n")
+            print(f"{alert}\n")
         print("Signature detection phase completed.\n")
         print(f"Total alerts detected: {len(alerts)}")
         return 0
