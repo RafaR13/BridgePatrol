@@ -7,11 +7,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-try:
-    from dotenv import load_dotenv
-except ImportError:
-    load_dotenv = None
-
+from config.env import load_env_file
 from helpers.polygon_root_chain_manager import (
     get_root_chain_manager_contract,
     get_rpc_url,
@@ -45,8 +41,7 @@ def update_mappings(rpc_url: str, discover_observed: bool = True) -> tuple[int, 
 
 
 def main():
-    if load_dotenv is not None:
-        load_dotenv()
+    load_env_file(PROJECT_ROOT / ".env")
 
     parser = argparse.ArgumentParser(
         description="Refresh Polygon root token -> child token mappings."

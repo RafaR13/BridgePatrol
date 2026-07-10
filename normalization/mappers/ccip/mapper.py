@@ -3,6 +3,12 @@ from db.repository.normalized_event.normalized_event_model import NormalizedEven
 from normalization.common.utils import event_contract_address, to_json
 
 
+def _ccip_correlation_id(message_id, sequence_number):
+    if message_id is None or sequence_number is None:
+        return None
+    return f"{message_id}|{sequence_number}"
+
+
 def map_ccip_send_requested(row, tx_ctx, cctx_id=None):
     return NormalizedEvent(
         bridge="ccip",
@@ -14,7 +20,7 @@ def map_ccip_send_requested(row, tx_ctx, cctx_id=None):
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.MESSAGE_SENT,
-        correlation_id=row.message_id,
+        correlation_id=_ccip_correlation_id(row.message_id, row.sequence_number),
         src_blockchain=row.blockchain,
         dst_blockchain=None,
         actor_from=row.sender,
@@ -50,7 +56,7 @@ def map_ccip_execution_state_changed(row, tx_ctx, cctx_id=None):
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.MESSAGE_EXECUTION_STATE_CHANGED,
-        correlation_id=row.message_id,
+        correlation_id=_ccip_correlation_id(row.message_id, row.sequence_number),
         src_blockchain=None,
         dst_blockchain=row.blockchain,
         actor_from=None,

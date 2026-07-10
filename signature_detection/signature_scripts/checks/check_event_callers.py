@@ -48,6 +48,8 @@ class CheckEventCallersMixin:
         for flow_type in ("deposits", "withdrawals"):
             for flow in self._configured_flows(self.bridge, flow_type):
                 for event in self._events_by_event_type(flow.destination, self.bridge):
+                    if not self._expected_callers_for_event(event):
+                        continue
                     if event.id in seen_event_ids:
                         continue
                     seen_event_ids.add(event.id)
@@ -169,13 +171,15 @@ class CheckEventCallersMixin:
 
         caller = call_frame["from"]
         expected_callers = self._expected_callers_for_event(event)
+        if not expected_callers:
+            return None
         if caller in expected_callers:
             return None
 
         correlation_id = event.correlation_id or event.transaction_hash or str(event.raw_pk)
         expected = ", ".join(sorted(expected_callers)) if expected_callers else "<empty>"
         operation = call_frame["operation"] or "<unknown>"
-        return self.create_detection_alert(
+        alert = self.create_detection_alert(
             signature_type=SignatureType.UNEXPECTED_EVENT_CALLER,
             severity=AlertSeverity.HIGH,
             bridge=self.bridge,
@@ -192,6 +196,15 @@ class CheckEventCallersMixin:
             created_at_ts=self._created_at_ts_for_event(event),
             probability="TODO",
         )
+        print(
+            "[check_event_callers] "
+            f"bridge={self.bridge} correlation_id={correlation_id} "
+            f"event_id={event.id} tx_hash={tx.transaction_hash} "
+            f"event_type={event.event_type} contract={event.contract_address} "
+            f"caller={caller or '<missing>'} operation={operation} "
+            f"expected={expected}"
+        )
+        return alert
 
     def _check_dangerous_trace_operations(
         self, tx, call_frames: list[dict]

@@ -11,6 +11,7 @@ from db.repository.bridge_tables.ccip import CCIPCrossChainTransactions
 from db.repository.bridge_tables.cctp import CCTPCrossChainTransactions
 from db.repository.bridge_tables.debridge import DeBridgeCrossChainTransactions
 from db.repository.bridge_tables.mayan import MayanCrossChainTransactions
+from db.repository.bridge_tables.nomad import NomadCrossChainTransactions
 from db.repository.bridge_tables.omnibridge import OmnibridgeCrossChainTransactions
 from db.repository.bridge_tables.polygon import PolygonCrossChainTransactions
 from db.repository.bridge_tables.ronin import RoninCrossChainTransactions
@@ -30,6 +31,7 @@ CCTX_MODELS = {
     "cctp": (CCTPCrossChainTransactions, "id"),
     "debridge": (DeBridgeCrossChainTransactions, "intent_id"),
     "mayan": (MayanCrossChainTransactions, "intent_id"),
+    "nomad": (NomadCrossChainTransactions, "id"),
     "omnibridge": (OmnibridgeCrossChainTransactions, "id"),
     "polygon": (PolygonCrossChainTransactions, "id"),
     "ronin": (RoninCrossChainTransactions, "id"),

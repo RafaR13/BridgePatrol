@@ -61,6 +61,14 @@ class MissingEventPairsMixin:
                         probability="TODO",
                     )
                 )
+                print(
+                    "[lock_without_mint] "
+                    f"bridge={bridge} flow={flow.name} "
+                    f"correlation_id={correlation_id} "
+                    f"event_id={lock_event.id} tx_hash={lock_event.transaction_hash} "
+                    f"event_type={lock_event.event_type} "
+                    f"timestamp={event_timestamp} block_number={event_block_number}"
+                )
         print(f"cought {len(alerts)} alerts")
         return alerts
 
@@ -122,6 +130,14 @@ class MissingEventPairsMixin:
                         ),
                         probability="TODO",
                     )
+                )
+                print(
+                    "[mint_without_lock] "
+                    f"bridge={bridge} flow={flow.name} "
+                    f"correlation_id={correlation_id} "
+                    f"event_id={mint_event.id} tx_hash={mint_event.transaction_hash} "
+                    f"event_type={mint_event.event_type} "
+                    f"timestamp={event_timestamp} block_number={event_block_number}"
                 )
         print(f"cought {len(alerts)} alerts")
         return alerts

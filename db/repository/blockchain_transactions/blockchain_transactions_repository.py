@@ -6,6 +6,7 @@ from db.repository.bridge_tables.ccip import CCIPBlockchainTransactions
 from db.repository.bridge_tables.cctp import CCTPBlockchainTransactions
 from db.repository.bridge_tables.debridge import DeBridgeBlockchainTransactions
 from db.repository.bridge_tables.mayan import MayanBlockchainTransactions
+from db.repository.bridge_tables.nomad import NomadBlockchainTransactions
 from db.repository.bridge_tables.omnibridge import OmnibridgeBlockchainTransactions
 from db.repository.bridge_tables.manual import (
     MeterIoBlockchainTransactions,
@@ -88,6 +89,15 @@ class MayanBlockchainTransactionRepository:
         session = get_session()
         try:
             return session.query(MayanBlockchainTransactions).all()
+        finally:
+            session.close()
+
+
+class NomadBlockchainTransactionRepository:
+    def get_all() -> list[NomadBlockchainTransactions]:
+        session = get_session()
+        try:
+            return session.query(NomadBlockchainTransactions).all()
         finally:
             session.close()
 

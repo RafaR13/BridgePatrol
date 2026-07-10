@@ -143,6 +143,9 @@ class OmnibridgeNormalizedEvent(NormalizedEvent):
 class MayanNormalizedEvent(NormalizedEvent):
     __tablename__ = "mayan_normalized_event"
 
+class NomadNormalizedEvent(NormalizedEvent):
+    __tablename__ = "nomad_normalized_event"
+
 class DebridgeNormalizedEvent(NormalizedEvent):
     __tablename__ = "debridge_normalized_event"
 
@@ -171,6 +174,7 @@ BRIDGE_NORMALIZED_EVENT_MODELS = {
     "cctp": CctpNormalizedEvent,
     "debridge": DebridgeNormalizedEvent,
     "mayan": MayanNormalizedEvent,
+    "nomad": NomadNormalizedEvent,
     "omnibridge": OmnibridgeNormalizedEvent,
     "polygon": PolygonNormalizedEvent,
     "ronin": RoninNormalizedEvent,

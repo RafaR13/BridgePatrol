@@ -71,6 +71,7 @@ class PolygonAnalyser(Analyser):
         return str(actual).lower() in {address.lower() for address in expected}
 
     def state_synced_contract_authorization(self) -> list[DetectionAlert]:
+        print("starting analysis for state_synced_contract_authorization")
         alerts: list[DetectionAlert] = []
         state_sender = POLYGON_POS_CORE["state_sender"]
         child_chain_manager_proxy = POLYGON_POS_CORE["child_chain_manager_proxy"]
@@ -79,10 +80,29 @@ class PolygonAnalyser(Analyser):
             NormalizedEventType.STATE_SYNCED,
             self.bridge,
         )
+        locked_token_tx_hashes = {
+            event.transaction_hash
+            for event in self._events_by_event_type(
+                NormalizedEventType.LOCKED_TOKEN,
+                self.bridge,
+            )
+            if event.transaction_hash
+        }
+        pos_deposit_txs_with_child_manager_state_sync = {
+            event.transaction_hash
+            for event in events
+            if event.transaction_hash in locked_token_tx_hashes
+            and self._is_expected_address(
+                self._state_synced_payload_contract_address(event),
+                child_chain_manager_proxy,
+            )
+        }
+        alerted_pos_deposit_txs: set[str] = set()
 
         for event in events:
             event_address = event.contract_address
             payload_contract_address = self._state_synced_payload_contract_address(event)
+            is_pos_deposit_state_sync = event.transaction_hash in locked_token_tx_hashes
             invalid_fields = []
 
             if not self._is_expected_address(event_address, state_sender):
@@ -92,14 +112,22 @@ class PolygonAnalyser(Analyser):
                     f"{', '.join(state_sender)}"
                 )
 
-            if not self._is_expected_address(
-                payload_contract_address,
-                child_chain_manager_proxy,
+            # StateSynced is a generic Polygon state-sync event. The emitter must be
+            # StateSender, but the payload contract is the child-chain receiver and
+            # can legitimately vary. A PoS deposit tx can emit multiple StateSynced
+            # events; the invariant is that at least one of them targets
+            # ChildChainManagerProxy, not that every StateSynced in that tx does.
+            if (
+                is_pos_deposit_state_sync
+                and event.transaction_hash
+                and event.transaction_hash not in pos_deposit_txs_with_child_manager_state_sync
+                and event.transaction_hash not in alerted_pos_deposit_txs
             ):
+                alerted_pos_deposit_txs.add(event.transaction_hash)
                 invalid_fields.append(
                     "contract_address="
-                    f"{payload_contract_address or '<missing>'}; expected one of: "
-                    f"{', '.join(child_chain_manager_proxy)}"
+                    "no StateSynced event in this PoS deposit transaction targets "
+                    f"one of: {', '.join(child_chain_manager_proxy)}"
                 )
 
             if not invalid_fields:
@@ -124,11 +152,23 @@ class PolygonAnalyser(Analyser):
                     probability="TODO",
                 )
             )
+            print(
+                "[state_synced_contract_authorization] "
+                f"bridge={self.bridge} correlation_id={correlation_id} "
+                f"event_id={event.id} tx_hash={event.transaction_hash} "
+                f"event_type={event.event_type} "
+                f"event_contract={event_address or '<missing>'} "
+                f"payload_contract={payload_contract_address or '<missing>'} "
+                f"is_pos_deposit_state_sync={is_pos_deposit_state_sync} "
+                f"invalid_fields={'; '.join(invalid_fields)}"
+            )
 
+        print(f"cought {len(alerts)} alerts")
         return alerts
 
     def token_mappings(self) -> list[DetectionAlert]:
         """Checks root token and child token pairs, and checks if the mapping is correct based on polygon_token_mappings table"""
+        print("starting analysis for token_mappings")
         alerts: list[DetectionAlert] = []
         mappings = PolygonTokenMappingRepository.get_all_by_root_token()
         contract = None
@@ -201,6 +241,16 @@ class PolygonAnalyser(Analyser):
                     probability="TODO",
                 )
             )
+            print(
+                "[token_mappings] "
+                f"bridge={self.bridge} correlation_id={correlation_id} "
+                f"event_id={event.id} tx_hash={event.transaction_hash} "
+                f"event_type={event.event_type} "
+                f"root_token={root_token or '<missing>'} "
+                f"child_token={child_token or '<missing>'} "
+                f"expected_child_token={expected_child_token or '<missing>'} "
+                f"mapping_checked_at={checked_at}"
+            )
 
         for event in self._events_by_event_type(
             NormalizedEventType.TOKEN_DEPOSITED,
@@ -222,6 +272,7 @@ class PolygonAnalyser(Analyser):
                 event, extra_data.get("root_token"), extra_data.get("child_token") or event.token_in
             )
 
+        print(f"cought {len(alerts)} alerts")
         return alerts
 
     '''

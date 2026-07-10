@@ -180,8 +180,8 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
                 name="message_execution",
                 source=NormalizedEventType.MESSAGE_SENT,
                 destination=NormalizedEventType.MESSAGE_EXECUTION_STATE_CHANGED,
-                source_key=("extra_data.sequence_number",),
-                destination_key=("extra_data.sequence_number",),
+                source_key=("message_id", "extra_data.sequence_number"),
+                destination_key=("message_id", "extra_data.sequence_number"),
             ),
         ),
     ),
@@ -211,6 +211,18 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
     ),
     "mayan": BridgeEventConfig(
         todo="TODO: define Mayan event pair grouping.",
+    ),
+    "nomad": BridgeEventConfig(
+        deposits=(
+            EventPairFlow(
+                name="message_delivery",
+                source=NormalizedEventType.NOMAD_HOME_DISPATCH,
+                destination=NormalizedEventType.NOMAD_ROUTER_RECEIVE,
+                source_key=("src_blockchain", "dst_blockchain", "nonce"),
+                destination_key=("src_blockchain", "dst_blockchain", "nonce"),
+                amount_check=True,
+            ),
+        ),
     ),
     "debridge": BridgeEventConfig(
         todo="TODO: define DeBridge event pair grouping.",
@@ -285,7 +297,7 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
 POLYGON_POS_CORE = {
     "root_chain_manager": ("0xa0c68c638235ee32657e8f720a23cec1bfc77c77",),
     "state_sender": ("0x28e4f3a7f651294b9564800b2d01f35189a5bfbe",),
-    "child_chain_manager_proxy": ("0xa6fa4fb5f76172d178d61b04b0ecd319c5d1caa",),
+    "child_chain_manager_proxy": ("0xa6fa4fb5f76172d178d61b04b0ecd319c5d1c0aa",),
 }
 
 
@@ -426,42 +438,6 @@ TOKEN_CONTRACT_ATTACK_CONFIG: dict[str, tuple[TokenContractAttackConfig, ...]] =
             actor_label="depositor",
             amount_label="DepositForBurn amount",
             title="cctp: DepositForBurn failed token contract checks",
-        ),
-    ),
-    "ccip": (
-        TokenContractAttackConfig(
-            event_type=NormalizedEventType.MESSAGE_SENT,
-            native_tokens=NATIVE_TOKENS["ccip"],
-            expected_contracts=(
-                "0x69ecc4e2d8ea56e2d0a05bf57f4fd6aee7f2c284",
-                "0xafd31c0c78785adf53e4c185670bfd5376249d8a",
-                "0x15a9d79d6b3485f70bf82bc49ddd1fcb37a7149c",
-                "0x3455d8e039736944e66e19eac77a42e8077b07bf",
-                "0x133672c0f0067573254dd7c8c9818a37d6208610",
-                "0x0c42a007bf89dc2cafab3fbd2ec1c1ca5bfe7d7c",
-                "0xca04169671a81e4fb8768cfad46c347ae65371f1",
-                "0x7d38c6363d5e4dfd500a691bc34878b383f58d93",
-                "0x61c3f6d72c80a3d1790b213c4cb58c3d4aafccdf",
-                "0x74d574d11977fc8d40f8590c419504cbe178adb7",
-                "0x18095fbd53184a50c2bb3929a6c62ca328732062",
-                "0x45d524b6fe99c005c52c65c578dc0e02d9751083",
-                "0x335581943ef47030e52e4fe921d4b72d15a20ab3",
-                "0x658d9ae41a9c291de423d3b4b6c064f6dd0e7ed2",
-                "0x320a10449556388503fd71d74a16ab52e0bd1deb",
-                "0x656e2aa127cb15815a90ef70c6aa7ed449d689ce",
-                "0x90388147f034a60adc4fbe9dc93084bab639d047",
-                "0xd2f4330dc0f587770f0fcb61f8d96409f4bd23fe",
-                "0x502eaaf47ecc410ed5f7b39dd476d0d05ae55864",
-                "0xa7e7cb9185ff4a17f54feded3eeb8d09935a879d",
-                "0xa3ea5eb15711041fd28950438b5a682392b54e6c",
-                "0x77601f272dd2d6481ac3a13942075388097245fb",
-                "0x5834e1c639418a4973391126576f550a6996836a",
-            ),
-            correlation_type="ccip_token_contract_attack",
-            event_label="MessageSent",
-            actor_label="sender",
-            amount_label="MessageSent amount",
-            title="ccip: MessageSent failed token contract checks",
         ),
     ),
     "across": (
@@ -636,9 +612,7 @@ VERIFIED_CONTRACTS: dict[str, dict[str, dict[NormalizedEventType, tuple[str, ...
             NormalizedEventType.USER_REQUEST_FOR_AFFIRMATION: (
                 "0x4aa42145aa6ebf72e164c9bbc74fbd3788045016",
             ),
-            NormalizedEventType.RELAYED_MESSAGE: (
-                "0x4aa42145aa6ebf72e164c9bbc74fbd3788045016",
-            ),
+            NormalizedEventType.RELAYED_MESSAGE: ("0x4aa42145aa6ebf72e164c9bbc74fbd3788045016",),
         },
         "amb_gnosis": {
             NormalizedEventType.USER_REQUEST_FOR_SIGNATURE: (
@@ -908,6 +882,7 @@ class Bridges(Enum):  # supported bridges
     OMNIBRIDGE = "omnibridge"
     DEBRIDGE = "debridge"
     MAYAN = "mayan"
+    NOMAD = "nomad"
     THORCHAIN = "thorchain"
     METER_IO = "meter.io"
     QUBIT = "qubit"
@@ -921,6 +896,7 @@ TIME_THRESHOLDS = {
     Bridges.CCIP.value: 3600,  # 1 hour
     Bridges.CCTP.value: 3600,  # 1 hour
     Bridges.ACROSS.value: 3600,  # 1 hour
+    Bridges.NOMAD.value: 3600,  # 1 hour
     Bridges.METER_IO.value: 3600,  # TODO: confirm expected bridge latency
     Bridges.QUBIT.value: 3600,  # TODO: confirm expected bridge latency
 }
@@ -932,6 +908,7 @@ BlockConfirmationThresholds = {
     Bridges.CCIP.value: 20,
     Bridges.CCTP.value: 20,
     Bridges.ACROSS.value: 20,
+    Bridges.NOMAD.value: 20,
     Bridges.METER_IO.value: 20,  # TODO: use per-chain confirmation thresholds
     Bridges.QUBIT.value: 20,  # TODO: use per-chain confirmation thresholds
 }

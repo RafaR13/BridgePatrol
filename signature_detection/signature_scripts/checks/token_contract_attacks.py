@@ -114,6 +114,7 @@ class TokenContractAttacksMixin:
                         event,
                         event_transfers,
                         config,
+                        tx,
                     )
 
                 self._debug(
@@ -143,6 +144,17 @@ class TokenContractAttacksMixin:
                         probability="TODO",
                     )
                 )
+                print(
+                    "[token_contract_attacks] "
+                    f"bridge={self.bridge} config={config.event_label} "
+                    f"correlation_id={correlation_id} "
+                    f"event_id={event.id} tx_hash={event.transaction_hash} "
+                    f"event_type={event.event_type} "
+                    f"token={event.token_in or '<missing>'} "
+                    f"amount={event.amount_in if event.amount_in is not None else '<missing>'} "
+                    f"event_contract={event.contract_address or '<missing>'} "
+                    f"invalid_fields={'; '.join(invalid_fields)}"
+                )
 
         print(f"cought {len(alerts)} alerts")
         return alerts
@@ -163,6 +175,10 @@ class TokenContractAttacksMixin:
 
     def _expected_contract_values(self, config: TokenContractAttackConfig) -> set[str]:
         return {contract.lower() for contract in config.expected_contracts}
+
+    def _status_value(self, event: NormalizedEvent, tx) -> str | None:
+        status = event.status if event.status is not None else getattr(tx, "status", None)
+        return str(status) if status is not None else None
 
     def _check_expected_source_contract(
         self,
@@ -193,17 +209,19 @@ class TokenContractAttacksMixin:
     ) -> list[str]:
         invalid_fields = []
 
-        if tx is None or tx.value != event.amount_in:
+        tx_value = getattr(tx, "value", None)
+        if tx is not None and tx_value is not None and tx_value != event.amount_in:
             invalid_fields.append(
                 f"1) tx.value does not match {config.amount_label} "
-                f"(tx.value={getattr(tx, 'value', '<missing>')}, amount={event.amount_in})"
+                f"(tx.value={tx_value}, amount={event.amount_in})"
             )
 
         invalid_fields.extend(self._check_expected_source_contract(event, config, 2))
 
-        if str(event.status) != "1":
+        status = self._status_value(event, tx)
+        if status is not None and status != "1":
             invalid_fields.append(
-                f"3) transaction status is not success (status={event.status or '<missing>'})"
+                f"3) transaction status is not success (status={status})"
             )
 
         return invalid_fields
@@ -213,13 +231,15 @@ class TokenContractAttacksMixin:
         event: NormalizedEvent,
         transfers: list,
         config: TokenContractAttackConfig,
+        tx,
     ) -> list[str]:
         invalid_fields = []
 
         # check if tx status is sucess
-        if str(event.status) != "1":
+        status = self._status_value(event, tx)
+        if status is not None and status != "1":
             invalid_fields.append(
-                f"4) transaction status is not success (status={event.status or '<missing>'})"
+                f"4) transaction status is not success (status={status})"
             )
 
         # check if the contract address of the event is official/correct
@@ -259,24 +279,32 @@ class TokenContractAttacksMixin:
             if self._normalized_value(transfer.token_address)
             == self._normalized_value(event.token_in)
         ]
-
-        ## lock/burn's contract address is transfer's "to" address
-        if not any(
+        token_transfers_from_actor = [
+            transfer
+            for transfer in token_transfers
+            if self._normalized_value(transfer.from_address)
+            == self._normalized_value(event.actor_from)
+        ]
+        has_transfer_to_contract = any(
             self._normalized_value(transfer.to_address)
             == self._normalized_value(event.contract_address)
-            for transfer in token_transfers
-        ):
+            for transfer in token_transfers_from_actor
+        )
+        total_transferred_from_actor = sum(
+            transfer.amount for transfer in token_transfers_from_actor
+        )
+        if has_transfer_to_contract and total_transferred_from_actor == event.amount_in:
+            return invalid_fields
+
+        ## lock/burn's contract address is transfer's "to" address
+        if not has_transfer_to_contract:
             transfer_invalid_fields.append(
                 f"1) no token Transfer to the {config.event_label} contract "
                 f"(expected_to={event.contract_address or '<missing>'})"
             )
 
         ## lock/burn's "from" is transfer's "from"
-        if not any(
-            self._normalized_value(transfer.from_address)
-            == self._normalized_value(event.actor_from)
-            for transfer in token_transfers
-        ):
+        if not token_transfers_from_actor:
             transfer_invalid_fields.append(
                 f"2) no token Transfer from the {config.actor_label} "
                 f"(expected_from={event.actor_from or '<missing>'})"

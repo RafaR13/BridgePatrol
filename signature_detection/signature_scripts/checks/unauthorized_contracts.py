@@ -54,9 +54,8 @@ class UnauthorizedContractsMixin:
                             if not verified_contracts:
                                 continue
 
-                            # Skipping for now
                             # if self._contract_is_verified(event, verified_contracts):
-                            #    continue
+                            continue
 
                             alert_key = (flow.name, event.id, side, correlation_id)
                             if alert_key in seen_alerts:
@@ -99,6 +98,14 @@ class UnauthorizedContractsMixin:
                                     created_at_ts=self._created_at_ts_for_event(event),
                                     probability="TODO",
                                 )
+                            )
+                            print(
+                                "[unauthorized_contracts] "
+                                f"bridge={bridge} flow={flow.name} side={side} "
+                                f"correlation_id={correlation_id} event_id={event.id} "
+                                f"tx_hash={event.transaction_hash} "
+                                f"event_type={event.event_type} "
+                                f"contract={actual_contract}"
                             )
 
         print(f"cought {len(alerts)} alerts")

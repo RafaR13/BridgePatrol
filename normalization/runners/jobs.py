@@ -19,6 +19,13 @@ from db.repository.bridge_tables.debridge import (
     DeBridgeCreatedOrder,
     DeBridgeFulfilledOrder,
 )
+from db.repository.bridge_tables.nomad import (
+    NomadEthHelperSend,
+    NomadHomeDispatch,
+    NomadReplicaProcess,
+    NomadRouterReceive,
+    NomadRouterSend,
+)
 from db.repository.bridge_tables.omnibridge import (
     OmnibridgeAffirmationCompleted,
     OmnibridgeRelayedMessage,
@@ -63,6 +70,13 @@ from normalization.mappers.debridge.mapper import (
     map_debridge_claimed_unlock,
     map_debridge_created_order,
     map_debridge_fulfilled_order,
+)
+from normalization.mappers.nomad.mapper import (
+    map_nomad_eth_helper_send,
+    map_nomad_home_dispatch,
+    map_nomad_replica_process,
+    map_nomad_router_receive,
+    map_nomad_router_send,
 )
 from normalization.mappers.omnibridge.mapper import (
     map_affirmation_completed,
@@ -181,6 +195,38 @@ BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
         ),
     ),
     "mayan": (),
+    "nomad": (
+        NormalizationJob(
+            NomadRouterSend,
+            "nomad_router_send",
+            lambda row: str(row.id),
+            map_nomad_router_send,
+        ),
+        NormalizationJob(
+            NomadRouterReceive,
+            "nomad_router_receive",
+            lambda row: str(row.id),
+            map_nomad_router_receive,
+        ),
+        NormalizationJob(
+            NomadEthHelperSend,
+            "nomad_eth_helper_send",
+            lambda row: str(row.id),
+            map_nomad_eth_helper_send,
+        ),
+        NormalizationJob(
+            NomadReplicaProcess,
+            "nomad_replica_process",
+            lambda row: str(row.id),
+            map_nomad_replica_process,
+        ),
+        NormalizationJob(
+            NomadHomeDispatch,
+            "nomad_home_dispatch",
+            lambda row: str(row.id),
+            map_nomad_home_dispatch,
+        ),
+    ),
     "omnibridge": (
         NormalizationJob(
             OmnibridgeTokensBridgingInitiated,

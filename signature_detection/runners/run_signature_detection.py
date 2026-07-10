@@ -11,6 +11,7 @@ from signature_detection.signature_scripts.ccipAnalyser import CCIPAnalyser
 from signature_detection.signature_scripts.cctpAnalyser import CCTPAnalyser
 from signature_detection.signature_scripts.debridgeAnalyser import DeBridgeAnalyser
 from signature_detection.signature_scripts.mayanAnalyser import MayanAnalyser
+from signature_detection.signature_scripts.nomadAnalyser import NomadAnalyser
 from signature_detection.signature_scripts.omnibridgeAnalyser import OmnibridgeAnalyser
 from signature_detection.signature_scripts.roninAnalyser import RoninAnalyser
 from signature_detection.signature_scripts.polygonAnalyser import PolygonAnalyser
@@ -29,6 +30,7 @@ ANALYSER_BY_BRIDGE = {
     Bridges.OMNIBRIDGE.value: OmnibridgeAnalyser,
     Bridges.DEBRIDGE.value: DeBridgeAnalyser,
     Bridges.MAYAN.value: MayanAnalyser,
+    Bridges.NOMAD.value: NomadAnalyser,
     Bridges.THORCHAIN.value: ThorchainAnalyser,
     Bridges.METER_IO.value: MeterIoAnalyser,
     Bridges.QUBIT.value: QubitAnalyser,

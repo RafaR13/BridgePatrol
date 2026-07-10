@@ -31,13 +31,14 @@ def get_rpc_url(cli_rpc_url: str | None) -> str:
     if cli_rpc_url:
         return cli_rpc_url
 
-    for env_var in ("ETHEREUM_RPC_URL", "ETH_RPC_URL", "WEB3_PROVIDER_URI"):
+    for env_var in ("ETHEREUM_RPC_URL", "ETH_RPC_URL", "WEB3_PROVIDER_URI", "RPC_URL"):
         rpc_url = os.getenv(env_var)
         if rpc_url:
             return rpc_url
 
     raise ValueError(
-        "Ethereum RPC URL not found. Set ETHEREUM_RPC_URL or pass --rpc-url."
+        "Ethereum RPC URL not found. Set ETHEREUM_RPC_URL, ETH_RPC_URL, "
+        "WEB3_PROVIDER_URI, RPC_URL, or pass --rpc-url."
     )
 
 
