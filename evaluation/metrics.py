@@ -105,3 +105,62 @@ def calculate_metrics(matrix: ConfusionMatrix) -> dict[str, float | int | None]:
         "recall": safe_divide(tp, tp + fn),
         "false_positive_rate": safe_divide(fp, fp + tn),
     }
+
+
+def calculate_no_expected_attacks_metrics(
+    predictions: Iterable[Any],
+    cctx_analyzed: int | None,
+) -> dict[str, float | int | None]:
+    """Build metrics for benign runs where every analyzed CCTX is expected negative."""
+    predicted_positive = {alert_key_from_alert(alert) for alert in predictions}
+    false_positives = len(predicted_positive)
+    total_negatives = cctx_analyzed or 0
+    true_negatives = max(total_negatives - false_positives, 0)
+
+    return calculate_metrics(
+        ConfusionMatrix(
+            true_positives=0,
+            false_positives=false_positives,
+            true_negatives=true_negatives,
+            false_negatives=0,
+        )
+    )
+
+
+def calculate_bridge_baseline_metrics(
+    predicted_positive_units_by_bridge: dict[str, set[str]],
+    cctx_analyzed_by_bridge: dict[str, int | None],
+    expected_positive_bridges: set[str],
+) -> dict[str, float | int | None]:
+    """Calculate CCTX-level metrics from bridge-level ground truth.
+
+    Bridges in expected_positive_bridges are treated as attack datasets, where
+    every analyzed CCTX is expected positive. Every other bridge is treated as a
+    benign dataset, where every analyzed CCTX is expected negative.
+    """
+    true_positives = 0
+    false_positives = 0
+    true_negatives = 0
+    false_negatives = 0
+
+    for bridge, cctx_count in cctx_analyzed_by_bridge.items():
+        total = cctx_count or 0
+        predicted_positive = len(predicted_positive_units_by_bridge.get(bridge, set()))
+
+        if bridge in expected_positive_bridges:
+            bridge_tp = min(predicted_positive, total)
+            true_positives += bridge_tp
+            false_negatives += max(total - bridge_tp, 0)
+        else:
+            bridge_fp = min(predicted_positive, total) if total else predicted_positive
+            false_positives += bridge_fp
+            true_negatives += max(total - bridge_fp, 0)
+
+    return calculate_metrics(
+        ConfusionMatrix(
+            true_positives=true_positives,
+            false_positives=false_positives,
+            true_negatives=true_negatives,
+            false_negatives=false_negatives,
+        )
+    )

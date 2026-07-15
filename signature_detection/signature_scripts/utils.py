@@ -42,6 +42,8 @@ class AnalyserUtilsMixin:
         values = [self._event_value(event, field) for field in fields]
         if any(value is None for value in values):
             return None
+        if len(set(map(str, values))) == 1:
+            return str(values[0])
         return "|".join(str(value) for value in values)
 
     def _set_analysis_window(
@@ -50,6 +52,8 @@ class AnalyserUtilsMixin:
         self._analysis_start_ts = start_ts
         self._analysis_has_time_filter = start_ts is not None or end_ts is not None
         self._transaction_context = None
+        self._events_cache = {}
+        self._event_pairs_cache = {}
 
         if end_ts is not None:
             self._analysis_end_ts = end_ts
@@ -105,8 +109,14 @@ class AnalyserUtilsMixin:
         self, event_type: NormalizedEventType, bridge: str | None = None
     ) -> list[NormalizedEvent]:
         bridge_name = bridge or self.bridge
+        cache_key = (bridge_name, self._event_type_value(event_type))
+        if cache_key in self._events_cache:
+            return self._events_cache[cache_key]
+
         events = NormalizedEventRepository.get_events_by_event_type(event_type, bridge_name)
-        return self._filter_events_for_analysis_window(events)
+        filtered_events = self._filter_events_for_analysis_window(events)
+        self._events_cache[cache_key] = filtered_events
+        return filtered_events
 
     def _created_at_ts_for_event(self, event: NormalizedEvent) -> int | None:
         return self._event_timestamp(event)
@@ -132,6 +142,10 @@ class AnalyserUtilsMixin:
                 source=flow_or_source,
                 destination=destination,
             )
+
+        cache_key = (bridge, flow)
+        if cache_key in self._event_pairs_cache:
+            return self._event_pairs_cache[cache_key]
 
         source_events = self._events_by_event_type(flow.source, bridge)
         destination_events = self._events_by_event_type(flow.destination, bridge)
@@ -173,6 +187,7 @@ class AnalyserUtilsMixin:
                     if event not in grouped_events[group_key][related.side]:
                         grouped_events[group_key][related.side].append(event)
 
+        self._event_pairs_cache[cache_key] = grouped_events
         return grouped_events
 
     def _blockchain_transaction_context(self) -> tuple[dict[str, int], dict[str, int]]:

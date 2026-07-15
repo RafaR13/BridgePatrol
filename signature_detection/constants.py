@@ -35,6 +35,46 @@ class SignatureType(str, Enum):
     RECEIPT_REPLAY = "RECEIPT_REPLAY"
 
 
+EXPECTED_EVENT_CALLERS: dict[
+    str,
+    dict[str, tuple[str, ...] | dict[str, tuple[str, ...]]],
+] = {
+    # Destination-side token mints/deposits on Polygon should be triggered by the
+    # child chain manager; source-side exits/releases should be triggered through
+    # the root chain manager before the predicate/token emits the destination log.
+    #
+    # Do not configure public entrypoint events such as Across FillExecuted or
+    # CCTP MessageReceived here: their direct caller can be an arbitrary relayer.
+    # For those bridges, use this check only when normalized token movement
+    # events are available and the token's internal caller is protocol-controlled.
+    "polygon": {
+        "TOKEN_DEPOSITED": {
+            "0xd9c7c4ed4b66858301d0cb28cc88bf655fe34861": (
+                "0xa6fa4fb5f76172d178d61b04b0ecd319c5d1c0aa",
+            ),
+        },
+        "EXITED_TOKEN": {
+            "0x40ec5b33f54e0e8a33a975908c5ba1c14e5bbbdf": (
+                "0xa0c68c638235ee32657e8f720a23cec1bfc77c77",
+            ),
+            "0x8484ef722627bf18ca5ae6bcf031c23e6e922b30": (
+                "0xa0c68c638235ee32657e8f720a23cec1bfc77c77",
+            ),
+        },
+    },
+    # Qubit's destination ProposalEvent authorizes the synthetic qXETH mint. If
+    # Transfer events for qXETH are normalized, the token caller should be the
+    # destination bridge handler, not a temporary attacker contract.
+    "qubit": {
+        "Transfer": {
+            "0x2f422fe9ea622049d6f73f81a906b9b8cff03b7f": (
+                "0x4d8ae68fcae98bf93299548545933c0d273ba23a",
+            ),
+        },
+    },
+}
+
+
 @dataclass(frozen=True)
 class RelatedEvent:
     event_type: NormalizedEventType
@@ -370,6 +410,7 @@ NATIVE_TOKENS: dict[str, dict[str, str]] = {
         "thorchain": NULL_NATIVE_TOKEN,
     },
     "meter.io": EVM_NATIVE_TOKEN_CONTRACTS,
+    "pnetwork": {},
     "qubit": {
         "ethereum": NULL_NATIVE_TOKEN,
     },
@@ -458,6 +499,18 @@ TOKEN_CONTRACT_ATTACK_CONFIG: dict[str, tuple[TokenContractAttackConfig, ...]] =
             actor_label="depositor",
             amount_label="input amount",
             title="across: DepositIntent failed token contract checks",
+        ),
+    ),
+    "pnetwork": (
+        TokenContractAttackConfig(
+            event_type=NormalizedEventType.PNETWORK_REDEEM,
+            native_tokens=NATIVE_TOKENS["pnetwork"],
+            expected_contracts=("0xed28a457a5a76596ac48d87c0f577020f6ea1c4c",),
+            correlation_type="pnetwork_redeem_contract_attack",
+            event_label="Redeem",
+            actor_label="redeemer",
+            amount_label="redeem amount",
+            title="pNetwork: Redeem event failed token contract checks",
         ),
     ),
     "debridge": (
@@ -885,6 +938,7 @@ class Bridges(Enum):  # supported bridges
     NOMAD = "nomad"
     THORCHAIN = "thorchain"
     METER_IO = "meter.io"
+    PNETWORK = "pnetwork"
     QUBIT = "qubit"
 
 
@@ -898,6 +952,7 @@ TIME_THRESHOLDS = {
     Bridges.ACROSS.value: 3600,  # 1 hour
     Bridges.NOMAD.value: 3600,  # 1 hour
     Bridges.METER_IO.value: 3600,  # TODO: confirm expected bridge latency
+    Bridges.PNETWORK.value: 3600,  # manual attack dataset
     Bridges.QUBIT.value: 3600,  # TODO: confirm expected bridge latency
 }
 

@@ -13,6 +13,7 @@ from db.repository.bridge_tables.manual import (
     ThorchainCrossChainTransactions,
     WormholeCrossChainTransactions,
 )
+from db.repository.bridge_tables.pnetwork import PNetworkCrossChainTransactions
 
 class RoninCrossChainTransactionRepository:
     def get_all() -> list[RoninCrossChainTransactions]:
@@ -138,5 +139,14 @@ class WormholeCrossChainTransactionRepository:
         session = get_session()
         try:
             return session.query(WormholeCrossChainTransactions).all()
+        finally:
+            session.close()
+
+
+class PNetworkCrossChainTransactionRepository:
+    def get_all() -> list[PNetworkCrossChainTransactions]:
+        session = get_session()
+        try:
+            return session.query(PNetworkCrossChainTransactions).all()
         finally:
             session.close()

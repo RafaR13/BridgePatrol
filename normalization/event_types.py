@@ -12,6 +12,10 @@ class NormalizedEventType(str, Enum):
     INTERNAL_TRANSFER = "InternalTransfer"
     PROPOSAL_EVENT = "ProposalEvent"
 
+    # pNetwork manual attack dataset
+    PNETWORK_BURNED = "Burned"
+    PNETWORK_REDEEM = "Redeem"
+
     # across
     DEPOSIT_INTENT = "DEPOSIT_INTENT"
     FILL_EXECUTED = "FILL_EXECUTED"

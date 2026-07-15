@@ -13,6 +13,7 @@ from config.env import load_env_file
 
 load_env_file(REPO_ROOT / ".env")
 
+from evaluation.markdown_report import default_markdown_path, write_markdown_report_from_jsonl
 from evaluation.reporting import EvaluationReporter
 from tests.evaluation.evaluation_utils import (
     bridge_scope,
@@ -29,6 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run performance evaluation.")
     parser.add_argument("--bridge", required=True, help="Bridge name, or 'all'.")
     parser.add_argument("--output", default="tests/evaluation/results/evaluation.jsonl")
+    parser.add_argument("--markdown-output", default=None)
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--start-ts", type=int, default=None)
     parser.add_argument("--end-ts", type=int, default=None)
@@ -102,9 +104,17 @@ def main() -> int:
     if cctx_analyzed:
         summary["alerts_per_cctx"] = len(alerts) / cctx_analyzed
     reporter.write("performance_summary", summary)
+    markdown_output = args.markdown_output or default_markdown_path(args.output, run_id)
+    write_markdown_report_from_jsonl(
+        jsonl_path=args.output,
+        markdown_path=markdown_output,
+        run_id=run_id,
+        title="Performance Evaluation Report",
+    )
 
     print(f"run_id={run_id}")
     print(f"output={args.output}")
+    print(f"markdown_output={markdown_output}")
     print(f"bridges={','.join(bridges)}")
     print(f"cctx_analyzed={cctx_analyzed}")
     print(f"alerts_detected={len(alerts)}")

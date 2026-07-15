@@ -5,6 +5,7 @@ import pytest
 from normalization.event_types import NormalizedEventType
 from signature_detection.constants import (
     BRIDGE_EVENT_MAP,
+    EXPECTED_EVENT_CALLERS,
     VERIFIED_CONTRACTS,
     Bridges,
     SignatureType,
@@ -377,3 +378,87 @@ def test_meter_pairs_deposit_with_proposal_for_both_movement_types(
 
     assert analyser.lock_without_mint("meter.io") == []
     assert analyser.mint_without_lock("meter.io") == []
+
+
+def test_event_caller_check_accepts_expected_internal_caller(synthetic_analysis):
+    flow = BRIDGE_EVENT_MAP["polygon"].deposits[1]
+    event = event_for_flow(
+        1,
+        NormalizedEventType.TOKEN_DEPOSITED,
+        "deposit-1",
+        "0xdestination",
+        flow,
+        contract_address="0xd9c7c4ed4b66858301d0cb28cc88bf655fe34861",
+    )
+    tx = make_transaction("0xdestination")
+    tx.calls = [
+        {
+            "from": "0xa6fa4fb5f76172d178d61b04b0ecd319c5d1c0aa",
+            "to": "0xd9c7c4ed4b66858301d0cb28cc88bf655fe34861",
+            "type": "CALL",
+        }
+    ]
+    analyser = synthetic_analysis("polygon", [event], [tx])
+
+    assert analyser.check_event_callers() == []
+
+
+def test_event_caller_check_flags_unexpected_internal_caller(synthetic_analysis):
+    flow = BRIDGE_EVENT_MAP["polygon"].deposits[1]
+    event = event_for_flow(
+        1,
+        NormalizedEventType.TOKEN_DEPOSITED,
+        "deposit-1",
+        "0xdestination",
+        flow,
+        contract_address="0xd9c7c4ed4b66858301d0cb28cc88bf655fe34861",
+    )
+    tx = make_transaction("0xdestination")
+    tx.calls = [
+        {
+            "from": "0xattacker",
+            "to": "0xd9c7c4ed4b66858301d0cb28cc88bf655fe34861",
+            "type": "CALL",
+        }
+    ]
+    analyser = synthetic_analysis("polygon", [event], [tx])
+
+    alerts = analyser.check_event_callers()
+
+    assert SignatureType.UNEXPECTED_EVENT_CALLER in signature_types(alerts)
+    assert alerts[0].dst_event_id == event.id
+
+
+def test_event_caller_check_includes_related_destination_events(synthetic_analysis):
+    flow = BRIDGE_EVENT_MAP["qubit"].deposits[0]
+    proposal = event_for_flow(
+        1,
+        flow.destination,
+        "73",
+        "0xdestination",
+        flow,
+        contract_address="0x4d8ae68fcae98bf93299548545933c0d273ba23a",
+    )
+    transfer = make_event(
+        2,
+        NormalizedEventType.TRANSFER,
+        "73",
+        "0xdestination",
+        contract_address="0x2f422fe9ea622049d6f73f81a906b9b8cff03b7f",
+    )
+    tx = make_transaction("0xdestination")
+    tx.calls = [
+        {
+            "from": "0x4d8ae68fcae98bf93299548545933c0d273ba23a",
+            "to": "0x2f422fe9ea622049d6f73f81a906b9b8cff03b7f",
+            "type": "CALL",
+        }
+    ]
+    analyser = synthetic_analysis("qubit", [proposal, transfer], [tx])
+
+    assert analyser._expected_callers_for_event(transfer) == {
+        EXPECTED_EVENT_CALLERS["qubit"]["Transfer"][
+            "0x2f422fe9ea622049d6f73f81a906b9b8cff03b7f"
+        ][0]
+    }
+    assert analyser.check_event_callers() == []

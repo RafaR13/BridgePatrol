@@ -21,6 +21,7 @@ from db.repository.bridge_tables.manual import (
     ThorchainCrossChainTransactions,
     WormholeCrossChainTransactions,
 )
+from db.repository.bridge_tables.pnetwork import PNetworkCrossChainTransactions
 from normalization.common.transaction_context import get_tx_context
 from .jobs import NormalizationJob, get_jobs_for_bridge
 
@@ -36,6 +37,7 @@ CCTX_MODELS = {
     "polygon": (PolygonCrossChainTransactions, "id"),
     "ronin": (RoninCrossChainTransactions, "id"),
     "meter.io": (MeterIoCrossChainTransactions, "cctx_id"),
+    "pnetwork": (PNetworkCrossChainTransactions, "cctx_id"),
     "qubit": (QubitCrossChainTransactions, "cctx_id"),
     "thorchain": (ThorchainCrossChainTransactions, "cctx_id"),
     "wormhole": (WormholeCrossChainTransactions, "cctx_id"),

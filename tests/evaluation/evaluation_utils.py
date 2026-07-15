@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, defaultdict
 from typing import Any
 
 from signature_detection.constants import Bridges
 
 
 ALL_BRIDGE = "all"
-MANUAL_NORMALIZATION_BRIDGES = {"meter.io", "qubit", "thorchain", "wormhole"}
+MANUAL_NORMALIZATION_BRIDGES = {"meter.io", "pnetwork", "qubit", "thorchain", "wormhole"}
 NO_NORMALIZATION_JOB_BRIDGES = {"stargate"}
 EXTRA_EVALUATION_BRIDGES = {"wormhole"}
 
@@ -112,3 +112,75 @@ def summarize_alerts(alerts) -> dict[str, Any]:
         "alerts_by_signature_type": dict(sorted(by_signature.items())),
         "alerts_by_bridge": dict(sorted(by_bridge.items())),
     }
+
+
+def predicted_positive_units_by_bridge(alerts) -> dict[str, set[str]]:
+    """Resolve alert predictions to CCTX-level units where possible."""
+    event_ids_by_bridge: dict[str, set[int]] = defaultdict(set)
+    for alert in alerts:
+        bridge = str(alert.bridge)
+        for field in ("src_event_id", "dst_event_id"):
+            event_id = getattr(alert, field, None)
+            if event_id is not None:
+                event_ids_by_bridge[bridge].add(event_id)
+
+    cctx_by_bridge_event_id = _load_cctx_ids_for_event_ids(event_ids_by_bridge)
+
+    units_by_bridge: dict[str, set[str]] = defaultdict(set)
+    for alert in alerts:
+        bridge = str(alert.bridge)
+        unit = None
+        event_cctx_ids = cctx_by_bridge_event_id.get(bridge, {})
+        for field in ("src_event_id", "dst_event_id"):
+            event_id = getattr(alert, field, None)
+            if event_id is not None and event_cctx_ids.get(event_id):
+                unit = f"cctx:{event_cctx_ids[event_id]}"
+                break
+
+        if unit is None and getattr(alert, "correlation_id", None):
+            unit = f"correlation:{alert.correlation_id}"
+        if unit is None:
+            signature_type = getattr(alert.signature_type, "value", alert.signature_type)
+            unit = (
+                f"alert:{signature_type}:"
+                f"{getattr(alert, 'src_event_id', None)}:"
+                f"{getattr(alert, 'dst_event_id', None)}"
+            )
+
+        units_by_bridge[bridge].add(unit)
+
+    return dict(units_by_bridge)
+
+
+def _load_cctx_ids_for_event_ids(
+    event_ids_by_bridge: dict[str, set[int]],
+) -> dict[str, dict[int, str | None]]:
+    if not event_ids_by_bridge:
+        return {}
+
+    from db.database import get_session
+    from db.repository.normalized_event.normalized_event_model import get_normalized_event_model
+
+    cctx_by_bridge_event_id: dict[str, dict[int, str | None]] = {}
+    session = get_session()
+    try:
+        for bridge, event_ids in event_ids_by_bridge.items():
+            if not event_ids:
+                continue
+            try:
+                model = get_normalized_event_model(bridge)
+            except ValueError:
+                continue
+            rows = (
+                session.query(model.id, model.cctx_id)
+                .filter(model.id.in_(event_ids))
+                .all()
+            )
+            cctx_by_bridge_event_id[bridge] = {
+                event_id: str(cctx_id) if cctx_id is not None else None
+                for event_id, cctx_id in rows
+            }
+    finally:
+        session.close()
+
+    return cctx_by_bridge_event_id

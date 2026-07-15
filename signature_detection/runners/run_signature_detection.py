@@ -18,6 +18,7 @@ from signature_detection.signature_scripts.polygonAnalyser import PolygonAnalyse
 from signature_detection.signature_scripts.stargateAnalyser import StargateAnalyser
 from signature_detection.signature_scripts.thorchainAnalyser import ThorchainAnalyser
 from signature_detection.signature_scripts.meterIoAnalyser import MeterIoAnalyser
+from signature_detection.signature_scripts.pnetworkAnalyser import PNetworkAnalyser
 from signature_detection.signature_scripts.qubitAnalyser import QubitAnalyser
 
 ANALYSER_BY_BRIDGE = {
@@ -33,6 +34,7 @@ ANALYSER_BY_BRIDGE = {
     Bridges.NOMAD.value: NomadAnalyser,
     Bridges.THORCHAIN.value: ThorchainAnalyser,
     Bridges.METER_IO.value: MeterIoAnalyser,
+    Bridges.PNETWORK.value: PNetworkAnalyser,
     Bridges.QUBIT.value: QubitAnalyser,
 }
 EXTRA_KNOWN_BRIDGES = {"wormhole"}

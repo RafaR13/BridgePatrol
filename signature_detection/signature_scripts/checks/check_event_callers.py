@@ -5,9 +5,12 @@ from collections.abc import Iterable
 
 from db.repository.detection_alert.detection_alert_model import DetectionAlert
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
-from signature_detection.constants import AlertSeverity, SignatureType
+from signature_detection.constants import (
+    EXPECTED_EVENT_CALLERS,
+    AlertSeverity,
+    SignatureType,
+)
 
-EXPECTED_EVENT_CALLERS: dict[str, dict[str, tuple[str, ...]]] = {}
 DANGEROUS_TRACE_OPERATIONS = {"CREATE", "CREATE2", "SELFDESTRUCT"}
 
 
@@ -33,10 +36,11 @@ class CheckEventCallersMixin:
             # check for dangerous operations, such as create and self destruct
             alerts.extend(self._check_dangerous_trace_operations(tx, call_frames))
 
-            for event in destination_events_by_tx.get(tx.transaction_hash, []):
+            # commented this out for now, while i check if it's really necessary
+            """for event in destination_events_by_tx.get(tx.transaction_hash, []):
                 alert = self._check_destination_event_caller(tx, event, call_frames)
                 if alert is not None:
-                    alerts.append(alert)
+                    alerts.append(alert)"""
 
         print(f"cought {len(alerts)} alerts")
         return alerts
@@ -47,13 +51,21 @@ class CheckEventCallersMixin:
 
         for flow_type in ("deposits", "withdrawals"):
             for flow in self._configured_flows(self.bridge, flow_type):
-                for event in self._events_by_event_type(flow.destination, self.bridge):
-                    if not self._expected_callers_for_event(event):
-                        continue
-                    if event.id in seen_event_ids:
-                        continue
-                    seen_event_ids.add(event.id)
-                    events_by_tx.setdefault(event.transaction_hash, []).append(event)
+                destination_event_types = [flow.destination]
+                destination_event_types.extend(
+                    related.event_type
+                    for related in flow.related_events
+                    if related.side == "destination"
+                )
+
+                for event_type in destination_event_types:
+                    for event in self._events_by_event_type(event_type, self.bridge):
+                        if not self._expected_callers_for_event(event):
+                            continue
+                        if event.id in seen_event_ids:
+                            continue
+                        seen_event_ids.add(event.id)
+                        events_by_tx.setdefault(event.transaction_hash, []).append(event)
 
         return events_by_tx
 
@@ -134,9 +146,14 @@ class CheckEventCallersMixin:
     def _expected_callers_for_event(self, event: NormalizedEvent) -> set[str]:
         bridge_callers = EXPECTED_EVENT_CALLERS.get(self.bridge, {})
         event_type = self._event_type_value(event.event_type)
-        return {
-            caller.lower() for caller in bridge_callers.get(event_type, ()) if caller is not None
-        }
+        configured_callers = bridge_callers.get(event_type)
+        if isinstance(configured_callers, dict):
+            event_contract = self._normalized_value(event.contract_address)
+            if event_contract is None:
+                return set()
+            configured_callers = configured_callers.get(event_contract, ())
+
+        return {caller.lower() for caller in configured_callers or () if caller is not None}
 
     def _find_event_call_frame(
         self, event: NormalizedEvent, call_frames: list[dict]
