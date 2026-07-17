@@ -80,6 +80,7 @@ class PolygonAnalyser(Analyser):
             NormalizedEventType.STATE_SYNCED,
             self.bridge,
         )
+        skipped_missing_address: set[str] = set()
         locked_token_tx_hashes = {
             event.transaction_hash
             for event in self._events_by_event_type(
@@ -104,6 +105,16 @@ class PolygonAnalyser(Analyser):
             payload_contract_address = self._state_synced_payload_contract_address(event)
             is_pos_deposit_state_sync = event.transaction_hash in locked_token_tx_hashes
             invalid_fields = []
+
+            if self._normalized_value(event_address) is None:
+                skipped_missing_address.add(self._event_analysis_key(event))
+                self._debug(
+                    "state_synced_contract_authorization: skip event missing "
+                    f"contract_address id={event.id} tx={event.transaction_hash} "
+                    f"cctx_id={event.cctx_id} correlation_id={event.correlation_id} "
+                    f"payload_contract={payload_contract_address or '<missing>'}"
+                )
+                continue
 
             if not self._is_expected_address(event_address, state_sender):
                 invalid_fields.append(
@@ -163,6 +174,12 @@ class PolygonAnalyser(Analyser):
                 f"invalid_fields={'; '.join(invalid_fields)}"
             )
 
+        if skipped_missing_address:
+            print(
+                "[state_synced_contract_authorization] "
+                f"{len(skipped_missing_address)} cctx could not be analyzed for this "
+                "check because the normalized event contract address is missing."
+            )
         print(f"cought {len(alerts)} alerts")
         return alerts
 

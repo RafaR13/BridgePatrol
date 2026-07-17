@@ -36,6 +36,7 @@ class TokenContractAttacksMixin:
         print("starting analysis for token_contract_attacks")
         # 0 - get configs for bridge
         alerts: list[DetectionAlert] = []
+        skipped_missing_address: set[str] = set()
         configs = TOKEN_CONTRACT_ATTACK_CONFIG.get(self.bridge, ())
         self._debug(f"token_contract_attacks: configs={len(configs)}")
         if not configs:
@@ -88,6 +89,15 @@ class TokenContractAttacksMixin:
                         "token_contract_attacks: skip event "
                         f"id={event.id} tx={event.transaction_hash} "
                         f"token_in={event.token_in} amount_in={event.amount_in}"
+                    )
+                    continue
+
+                if self._normalized_value(event.contract_address) is None:
+                    skipped_missing_address.add(self._event_analysis_key(event))
+                    self._debug(
+                        "token_contract_attacks: skip event missing contract_address "
+                        f"id={event.id} tx={event.transaction_hash} "
+                        f"cctx_id={event.cctx_id} correlation_id={event.correlation_id}"
                     )
                     continue
 
@@ -156,8 +166,23 @@ class TokenContractAttacksMixin:
                     f"invalid_fields={'; '.join(invalid_fields)}"
                 )
 
+        if skipped_missing_address:
+            print(
+                "[token_contract_attacks] "
+                f"{len(skipped_missing_address)} cctx could not be analyzed for this "
+                "check because the normalized event contract address is missing."
+            )
         print(f"cought {len(alerts)} alerts")
         return alerts
+
+    def _event_analysis_key(self, event: NormalizedEvent) -> str:
+        return str(
+            event.cctx_id
+            or event.correlation_id
+            or event.transaction_hash
+            or event.raw_pk
+            or event.id
+        )
 
     def _is_native_token(
         self,
