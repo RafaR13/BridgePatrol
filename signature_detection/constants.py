@@ -115,6 +115,12 @@ class TokenContractAttackConfig:
     title: str
 
 
+@dataclass(frozen=True)
+class BridgeCctxTimeout:
+    typical_seconds: int
+    max_seconds: int
+
+
 BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
     "ronin": BridgeEventConfig(
         deposits=(
@@ -942,18 +948,42 @@ class Bridges(Enum):  # supported bridges
     QUBIT = "qubit"
 
 
+MINUTE = 60
+HOUR = 60 * MINUTE
+
+BRIDGE_CCTX_TIMEOUTS = {
+    "across": BridgeCctxTimeout(typical_seconds=2 * MINUTE, max_seconds=10 * MINUTE),
+    "ccip": BridgeCctxTimeout(typical_seconds=10 * MINUTE, max_seconds=60 * MINUTE),
+    "cctp": BridgeCctxTimeout(typical_seconds=20 * MINUTE, max_seconds=45 * MINUTE),
+    "polygon": BridgeCctxTimeout(typical_seconds=60 * MINUTE, max_seconds=6 * HOUR),
+    "ronin": BridgeCctxTimeout(typical_seconds=10 * MINUTE, max_seconds=60 * MINUTE),
+    "omnibridge": BridgeCctxTimeout(typical_seconds=30 * MINUTE, max_seconds=2 * HOUR),
+    "debridge": BridgeCctxTimeout(typical_seconds=5 * MINUTE, max_seconds=30 * MINUTE),
+    "pnetwork": BridgeCctxTimeout(typical_seconds=30 * MINUTE, max_seconds=2 * HOUR),
+    "thorchain": BridgeCctxTimeout(typical_seconds=60 * MINUTE, max_seconds=4 * HOUR),
+    "qubit": BridgeCctxTimeout(typical_seconds=30 * MINUTE, max_seconds=90 * MINUTE),
+    "meter.io": BridgeCctxTimeout(typical_seconds=30 * MINUTE, max_seconds=90 * MINUTE),
+    "chainswap": BridgeCctxTimeout(typical_seconds=30 * MINUTE, max_seconds=90 * MINUTE),
+    "mayan": BridgeCctxTimeout(typical_seconds=5 * MINUTE, max_seconds=30 * MINUTE),
+    "nomad": BridgeCctxTimeout(typical_seconds=30 * MINUTE, max_seconds=2 * HOUR),
+}
+
+
 TIME_THRESHOLDS = {
     # times after which we consider a lock/mint pair to be suspicious if the corresponding mint/lock event has not been observed
-    Bridges.RONIN.value: 3600,  # 1 hour
-    Bridges.POLYGON.value: 3600,  # 1 hour
-    Bridges.OMNIBRIDGE.value: 3600,  # 1 hour
-    Bridges.CCIP.value: 3600,  # 1 hour
-    Bridges.CCTP.value: 3600,  # 1 hour
-    Bridges.ACROSS.value: 3600,  # 1 hour
-    Bridges.NOMAD.value: 3600,  # 1 hour
-    Bridges.METER_IO.value: 3600,  # TODO: confirm expected bridge latency
-    Bridges.PNETWORK.value: 3600,  # manual attack dataset
-    Bridges.QUBIT.value: 3600,  # TODO: confirm expected bridge latency
+    Bridges.RONIN.value: BRIDGE_CCTX_TIMEOUTS[Bridges.RONIN.value].max_seconds,
+    Bridges.POLYGON.value: BRIDGE_CCTX_TIMEOUTS[Bridges.POLYGON.value].max_seconds,
+    Bridges.OMNIBRIDGE.value: BRIDGE_CCTX_TIMEOUTS[Bridges.OMNIBRIDGE.value].max_seconds,
+    Bridges.CCIP.value: BRIDGE_CCTX_TIMEOUTS[Bridges.CCIP.value].max_seconds,
+    Bridges.CCTP.value: BRIDGE_CCTX_TIMEOUTS[Bridges.CCTP.value].max_seconds,
+    Bridges.ACROSS.value: BRIDGE_CCTX_TIMEOUTS[Bridges.ACROSS.value].max_seconds,
+    Bridges.NOMAD.value: BRIDGE_CCTX_TIMEOUTS[Bridges.NOMAD.value].max_seconds,
+    Bridges.METER_IO.value: BRIDGE_CCTX_TIMEOUTS[Bridges.METER_IO.value].max_seconds,
+    Bridges.PNETWORK.value: BRIDGE_CCTX_TIMEOUTS[Bridges.PNETWORK.value].max_seconds,
+    Bridges.QUBIT.value: BRIDGE_CCTX_TIMEOUTS[Bridges.QUBIT.value].max_seconds,
+    Bridges.DEBRIDGE.value: BRIDGE_CCTX_TIMEOUTS[Bridges.DEBRIDGE.value].max_seconds,
+    Bridges.MAYAN.value: BRIDGE_CCTX_TIMEOUTS[Bridges.MAYAN.value].max_seconds,
+    Bridges.THORCHAIN.value: BRIDGE_CCTX_TIMEOUTS[Bridges.THORCHAIN.value].max_seconds,
 }
 
 BlockConfirmationThresholds = {
