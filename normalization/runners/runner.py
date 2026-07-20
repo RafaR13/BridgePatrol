@@ -16,6 +16,7 @@ from db.repository.bridge_tables.omnibridge import OmnibridgeCrossChainTransacti
 from db.repository.bridge_tables.polygon import PolygonCrossChainTransactions
 from db.repository.bridge_tables.ronin import RoninCrossChainTransactions
 from db.repository.bridge_tables.manual import (
+    ChainSwapCrossChainTransactions,
     MeterIoCrossChainTransactions,
     QubitCrossChainTransactions,
     ThorchainCrossChainTransactions,
@@ -41,6 +42,7 @@ CCTX_MODELS = {
     "qubit": (QubitCrossChainTransactions, "cctx_id"),
     "thorchain": (ThorchainCrossChainTransactions, "cctx_id"),
     "wormhole": (WormholeCrossChainTransactions, "cctx_id"),
+    "chainswap": (ChainSwapCrossChainTransactions, "cctx_id"),
 }
 
 

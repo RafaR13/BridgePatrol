@@ -20,6 +20,7 @@ from signature_detection.signature_scripts.thorchainAnalyser import ThorchainAna
 from signature_detection.signature_scripts.meterIoAnalyser import MeterIoAnalyser
 from signature_detection.signature_scripts.pnetworkAnalyser import PNetworkAnalyser
 from signature_detection.signature_scripts.qubitAnalyser import QubitAnalyser
+from signature_detection.signature_scripts.chainswapAnalyser import ChainSwapAnalyser
 
 ANALYSER_BY_BRIDGE = {
     Bridges.STARGATE.value: StargateAnalyser,
@@ -36,6 +37,7 @@ ANALYSER_BY_BRIDGE = {
     Bridges.METER_IO.value: MeterIoAnalyser,
     Bridges.PNETWORK.value: PNetworkAnalyser,
     Bridges.QUBIT.value: QubitAnalyser,
+    Bridges.CHAINSWAP.value: ChainSwapAnalyser,
 }
 EXTRA_KNOWN_BRIDGES = {"wormhole"}
 

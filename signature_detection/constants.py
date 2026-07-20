@@ -337,6 +337,13 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
             "meaningful recipient mismatch detection."
         ),
     ),
+    "chainswap": BridgeEventConfig(
+        todo=(
+            "TODO: define ChainSwap source/destination event pair grouping. "
+            "The current curated attack dataset has destination-side Receive() "
+            "transactions only and no normalized events."
+        ),
+    ),
 }
 
 
@@ -420,6 +427,7 @@ NATIVE_TOKENS: dict[str, dict[str, str]] = {
     "qubit": {
         "ethereum": NULL_NATIVE_TOKEN,
     },
+    "chainswap": {},  # TODO: fill token/native-token mapping if ChainSwap events are normalized.
 }
 
 # Source event contracts observed in the supplied Thorchain samples.
@@ -928,6 +936,7 @@ VERIFIED_CONTRACTS: dict[str, dict[str, dict[NormalizedEventType, tuple[str, ...
             NormalizedEventType.TRANSFER: ("0x2f422fe9ea622049d6f73f81a906b9b8cff03b7f",),
         },
     },
+    "chainswap": {},  # TODO: add Receive()/bridge handler allowlists when events are normalized.
 }
 
 
@@ -946,6 +955,7 @@ class Bridges(Enum):  # supported bridges
     METER_IO = "meter.io"
     PNETWORK = "pnetwork"
     QUBIT = "qubit"
+    CHAINSWAP = "chainswap"
 
 
 MINUTE = 60
@@ -981,6 +991,7 @@ TIME_THRESHOLDS = {
     Bridges.METER_IO.value: BRIDGE_CCTX_TIMEOUTS[Bridges.METER_IO.value].max_seconds,
     Bridges.PNETWORK.value: BRIDGE_CCTX_TIMEOUTS[Bridges.PNETWORK.value].max_seconds,
     Bridges.QUBIT.value: BRIDGE_CCTX_TIMEOUTS[Bridges.QUBIT.value].max_seconds,
+    Bridges.CHAINSWAP.value: BRIDGE_CCTX_TIMEOUTS[Bridges.CHAINSWAP.value].max_seconds,
     Bridges.DEBRIDGE.value: BRIDGE_CCTX_TIMEOUTS[Bridges.DEBRIDGE.value].max_seconds,
     Bridges.MAYAN.value: BRIDGE_CCTX_TIMEOUTS[Bridges.MAYAN.value].max_seconds,
     Bridges.THORCHAIN.value: BRIDGE_CCTX_TIMEOUTS[Bridges.THORCHAIN.value].max_seconds,
@@ -996,4 +1007,5 @@ BlockConfirmationThresholds = {
     Bridges.NOMAD.value: 20,
     Bridges.METER_IO.value: 20,  # TODO: use per-chain confirmation thresholds
     Bridges.QUBIT.value: 20,  # TODO: use per-chain confirmation thresholds
+    Bridges.CHAINSWAP.value: 20,  # TODO: confirm Ethereum-only threshold for ChainSwap.
 }

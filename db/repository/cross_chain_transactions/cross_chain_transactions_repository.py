@@ -10,6 +10,7 @@ from db.repository.bridge_tables.omnibridge import OmnibridgeCrossChainTransacti
 from db.repository.bridge_tables.manual import (
     MeterIoCrossChainTransactions,
     QubitCrossChainTransactions,
+    ChainSwapCrossChainTransactions,
     ThorchainCrossChainTransactions,
     WormholeCrossChainTransactions,
 )
@@ -121,6 +122,15 @@ class QubitCrossChainTransactionRepository:
         session = get_session()
         try:
             return session.query(QubitCrossChainTransactions).all()
+        finally:
+            session.close()
+
+
+class ChainSwapCrossChainTransactionRepository:
+    def get_all() -> list[ChainSwapCrossChainTransactions]:
+        session = get_session()
+        try:
+            return session.query(ChainSwapCrossChainTransactions).all()
         finally:
             session.close()
 

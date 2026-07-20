@@ -18,6 +18,7 @@ from evaluation.reporting import EvaluationReporter
 from tests.evaluation.evaluation_utils import (
     bridge_scope,
     count_cctx_for_bridges,
+    evaluation_windows_for_bridges,
     normalization_skip_reason,
     resolve_bridge_selection,
     should_run_normalization,
@@ -50,6 +51,11 @@ def main() -> int:
     run_id = args.run_id or str(uuid4())
     reporter = EvaluationReporter(args.output, run_id=run_id)
     bridges = resolve_bridge_selection(args.bridge)
+    evaluation_windows = evaluation_windows_for_bridges(
+        bridges,
+        start_ts=args.start_ts,
+        end_ts=args.end_ts,
+    )
 
     normalization_results = []
     for bridge in bridges:
@@ -76,26 +82,44 @@ def main() -> int:
             )
         )
 
-    alerts = run_for_bridges(
-        bridges,
-        start_ts=args.start_ts,
-        end_ts=args.end_ts,
-        persist=args.persist_alerts,
-        report_path=args.output,
-        run_id=run_id,
-    )
+    alerts = []
+    for bridge in bridges:
+        bridge_window = evaluation_windows[bridge]
+        alerts.extend(
+            run_for_bridges(
+                [bridge],
+                start_ts=bridge_window["start_ts"],
+                end_ts=bridge_window["end_ts"],
+                persist=args.persist_alerts,
+                report_path=args.output,
+                run_id=run_id,
+            )
+        )
 
     cctx_by_bridge = count_cctx_for_bridges(
         bridges,
-        start_ts=args.start_ts,
-        end_ts=args.end_ts,
+        start_ts={
+            bridge: window["start_ts"]
+            for bridge, window in evaluation_windows.items()
+        },
+        end_ts={
+            bridge: window["end_ts"]
+            for bridge, window in evaluation_windows.items()
+        },
     )
     cctx_analyzed = total_count(cctx_by_bridge)
+    summary_start_ts = (
+        evaluation_windows[bridges[0]]["start_ts"] if len(bridges) == 1 else args.start_ts
+    )
+    summary_end_ts = (
+        evaluation_windows[bridges[0]]["end_ts"] if len(bridges) == 1 else args.end_ts
+    )
     summary = {
         "bridge": bridge_scope(bridges),
         "bridges": bridges,
-        "start_ts": args.start_ts,
-        "end_ts": args.end_ts,
+        "start_ts": summary_start_ts,
+        "end_ts": summary_end_ts,
+        "evaluation_windows_by_bridge": evaluation_windows,
         "cctx_analyzed": cctx_analyzed,
         "cctx_analyzed_by_bridge": cctx_by_bridge,
         "normalization": normalization_results,

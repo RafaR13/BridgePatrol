@@ -25,6 +25,25 @@ reliable signature for it, the table says `coverage gap`.
 - `DANGEROUS_TRACE_OPERATION`: transaction trace contains operations such as
   `CREATE`, `CREATE2`, or `SELFDESTRUCT`.
 
+## ChainSwap
+
+High-level incident pattern: the curated ChainSwap dataset currently contains
+Ethereum destination-side `Receive()` transactions from the labelled ChainSwap
+attacker address. The corresponding source-side lock/deposit transactions are
+not present in the dataset yet.
+
+For evaluation, each `chainswap_cross_chain_transactions` row is therefore a
+destination-only CCTX and should be detected as:
+
+- `MINT_WITHOUT_LOCK`: destination execution exists without an observed source
+  lock/deposit transaction.
+
+Expected current coverage:
+
+| CCTX set | What happened | Expected signatures |
+| --- | --- | --- |
+| `chainswap:*` | Ethereum destination `Receive()` transaction with `dst_*` populated and `src_* = NULL`. | `MINT_WITHOUT_LOCK`. |
+
 ## Meter.io
 
 High-level incident pattern: the Meter.io attacker abused an assumption in the

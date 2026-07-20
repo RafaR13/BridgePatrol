@@ -8,8 +8,23 @@ from signature_detection.constants import Bridges
 
 ALL_BRIDGE = "all"
 MANUAL_NORMALIZATION_BRIDGES = {"meter.io", "pnetwork", "qubit", "thorchain", "wormhole"}
+MANUAL_TRANSACTION_ONLY_BRIDGES = {"chainswap"}
 NO_NORMALIZATION_JOB_BRIDGES = {"stargate"}
 EXTRA_EVALUATION_BRIDGES = {"wormhole"}
+EVALUATION_START_TS = 1735689600  # 2025-01-01 00:00:00 UTC
+EVALUATION_END_TS = 1735776000  # 2025-01-02 00:00:00 UTC
+EVALUATION_WINDOWS_BY_BRIDGE = {
+    "across": (1764547200, 1764550800),  # 2025-12-01 00:00:00..01:00:00 UTC
+    "ccip": (1735689600, 1735732800),  # 2025-01-01 00:00:00..12:00:00 UTC
+    "cctp": (1735689600, 1735776000),  # 2025-01-01 00:00:00..2025-01-02 00:00:00 UTC
+    "debridge": (1733011200, 1733014800),  # 2024-12-01 00:00:00..01:00:00 UTC
+    "mayan": (1741219200, 1741262400),  # 2025-03-06 00:00:00..12:00:00 UTC
+    "nomad": (1654041600, 1654128000),  # 2022-06-01 00:00:00..2022-06-02 00:00:00 UTC
+    "omnibridge": (1735689600, 1735776000),  # 2025-01-01 00:00:00..2025-01-02 00:00:00 UTC
+    "polygon": (1735689600, 1735776000),  # 2025-01-01 00:00:00..2025-01-02 00:00:00 UTC
+    "ronin": (1735689600, 1735776000),  # 2025-01-01 00:00:00..2025-01-02 00:00:00 UTC
+    "chainswap": (1625944500, 1625946900),  # 2021-07-10 19:15:00..19:55:00 UTC
+}
 
 
 def supported_evaluation_bridges() -> list[str]:
@@ -34,6 +49,8 @@ def should_run_normalization(bridge: str) -> bool:
 def normalization_skip_reason(bridge: str) -> str | None:
     if bridge in MANUAL_NORMALIZATION_BRIDGES:
         return "manual_normalized_events_dataset"
+    if bridge in MANUAL_TRANSACTION_ONLY_BRIDGES:
+        return "manual_transaction_only_dataset"
     if bridge in NO_NORMALIZATION_JOB_BRIDGES:
         return "no_normalization_jobs"
     return None
@@ -41,6 +58,38 @@ def normalization_skip_reason(bridge: str) -> str | None:
 
 def bridge_scope(bridges: list[str]) -> str:
     return ALL_BRIDGE if len(bridges) != 1 else bridges[0]
+
+
+def evaluation_window_for_bridge(
+    bridge: str,
+    start_ts: int | None = None,
+    end_ts: int | None = None,
+) -> tuple[int, int]:
+    default_start_ts, default_end_ts = EVALUATION_WINDOWS_BY_BRIDGE.get(
+        bridge,
+        (EVALUATION_START_TS, EVALUATION_END_TS),
+    )
+    return (
+        start_ts if start_ts is not None else default_start_ts,
+        end_ts if end_ts is not None else default_end_ts,
+    )
+
+
+def evaluation_windows_for_bridges(
+    bridges: list[str],
+    start_ts: int | None = None,
+    end_ts: int | None = None,
+) -> dict[str, dict[str, int]]:
+    return {
+        bridge: {
+            "start_ts": bridge_start_ts,
+            "end_ts": bridge_end_ts,
+        }
+        for bridge in bridges
+        for bridge_start_ts, bridge_end_ts in [
+            evaluation_window_for_bridge(bridge, start_ts=start_ts, end_ts=end_ts)
+        ]
+    }
 
 
 def count_cctx(
@@ -85,11 +134,15 @@ def count_cctx(
 
 def count_cctx_for_bridges(
     bridges: list[str],
-    start_ts: int | None = None,
-    end_ts: int | None = None,
+    start_ts: int | dict[str, int] | None = None,
+    end_ts: int | dict[str, int] | None = None,
 ) -> dict[str, int | None]:
     return {
-        bridge: count_cctx(bridge, start_ts=start_ts, end_ts=end_ts)
+        bridge: count_cctx(
+            bridge,
+            start_ts=start_ts.get(bridge) if isinstance(start_ts, dict) else start_ts,
+            end_ts=end_ts.get(bridge) if isinstance(end_ts, dict) else end_ts,
+        )
         for bridge in bridges
     }
 

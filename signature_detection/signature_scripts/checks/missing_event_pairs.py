@@ -10,6 +10,102 @@ from signature_detection.constants import (
 
 
 class MissingEventPairsMixin:
+    def _side_has_transaction(self, cctx, side: str) -> bool:
+        return getattr(cctx, f"{side}_transaction_hash", None) is not None
+
+    def _cctx_side_timestamp(self, cctx, side: str) -> int | None:
+        return getattr(cctx, f"{side}_timestamp", None)
+
+    def incomplete_cross_chain_transactions(
+        self,
+        bridge: str,
+        cctxs: list | None = None,
+    ) -> list[DetectionAlert]:
+        """
+        Alert when a cross-chain transaction row has only one side populated.
+
+        This is useful for manually curated datasets that have transaction/CCTX
+        rows but no normalized events yet. A dst-only row is treated as a
+        mint/release without a source lock; a src-only row is treated as a lock
+        without a destination mint/release.
+        """
+        print("starting analysis for incomplete_cross_chain_transactions")
+        alerts = []
+
+        if cctxs is None:
+            fetcher = getattr(self, "fetch_cross_chain_transactions", None)
+            if fetcher is None:
+                return alerts
+            cctxs = fetcher()
+
+        for cctx in cctxs:
+            has_source = self._side_has_transaction(cctx, "src")
+            has_destination = self._side_has_transaction(cctx, "dst")
+            if has_source == has_destination:
+                continue
+
+            cctx_id = getattr(cctx, "cctx_id", None)
+            if has_destination:
+                timestamp = self._cctx_side_timestamp(cctx, "dst")
+                if not self._is_timestamp_in_analysis_window(timestamp):
+                    continue
+                transaction_hash = getattr(cctx, "dst_transaction_hash", None)
+                severity = AlertSeverity.HIGH
+                description_suffix = "Destination transaction exists, but no source transaction is present in the CCTX row."
+                if self._event_is_recent(bridge, timestamp, None):
+                    severity = AlertSeverity.MEDIUM
+                    description_suffix = "Destination transaction exists without a source transaction, but it is still within the expected processing window."
+                alerts.append(
+                    self.create_detection_alert(
+                        signature_type=SignatureType.MINT_WITHOUT_LOCK,
+                        severity=severity,
+                        bridge=bridge,
+                        correlation_id=cctx_id,
+                        correlation_type="dst_only_cross_chain_transaction",
+                        src_event_id=None,
+                        dst_event_id=None,
+                        title=f"{bridge}: destination transaction without source transaction",
+                        description=(
+                            f"Found CCTX {cctx_id} with dst_transaction_hash={transaction_hash}. "
+                            f"{description_suffix}"
+                        ),
+                        created_at_ts=timestamp,
+                        probability=self._missing_pair_attack_probability(bridge, timestamp),
+                    )
+                )
+                continue
+
+            timestamp = self._cctx_side_timestamp(cctx, "src")
+            if not self._is_timestamp_in_analysis_window(timestamp):
+                continue
+            transaction_hash = getattr(cctx, "src_transaction_hash", None)
+            severity = AlertSeverity.MEDIUM
+            description_suffix = "Source transaction exists, but no destination transaction is present in the CCTX row."
+            if self._event_is_recent(bridge, timestamp, None):
+                severity = AlertSeverity.LOW
+                description_suffix = "Source transaction exists without a destination transaction, but it is still within the expected processing window."
+            alerts.append(
+                self.create_detection_alert(
+                    signature_type=SignatureType.LOCK_WITHOUT_MINT,
+                    severity=severity,
+                    bridge=bridge,
+                    correlation_id=cctx_id,
+                    correlation_type="src_only_cross_chain_transaction",
+                    src_event_id=None,
+                    dst_event_id=None,
+                    title=f"{bridge}: source transaction without destination transaction",
+                    description=(
+                        f"Found CCTX {cctx_id} with src_transaction_hash={transaction_hash}. "
+                        f"{description_suffix}"
+                    ),
+                    created_at_ts=timestamp,
+                    probability=self._missing_pair_attack_probability(bridge, timestamp),
+                )
+            )
+
+        print(f"cought {len(alerts)} alerts")
+        return alerts
+
     def _missing_pair_attack_probability(
         self,
         bridge: str,
@@ -103,6 +199,10 @@ class MissingEventPairsMixin:
                 ):
                     severity = AlertSeverity.LOW
                     description_suffix = "No matching mint event was observed yet, but the lock is still within the expected processing window."
+                probability = self._missing_pair_attack_probability(
+                    bridge,
+                    event_timestamp,
+                )
 
                 alerts.append(
                     self.create_detection_alert(
@@ -122,10 +222,7 @@ class MissingEventPairsMixin:
                         created_at_ts=(
                             event_timestamp if event_timestamp is not None else lock_event.timestamp
                         ),
-                        probability=self._missing_pair_attack_probability(
-                            bridge,
-                            event_timestamp,
-                        ),
+                        probability=probability,
                     )
                 )
                 print(
@@ -134,7 +231,8 @@ class MissingEventPairsMixin:
                     f"correlation_id={correlation_id} "
                     f"event_id={lock_event.id} tx_hash={lock_event.transaction_hash} "
                     f"event_type={lock_event.event_type} "
-                    f"timestamp={event_timestamp} block_number={event_block_number}"
+                    f"timestamp={event_timestamp} block_number={event_block_number} "
+                    f"probability={probability}"
                 )
         print(f"cought {len(alerts)} alerts")
         return alerts
@@ -176,6 +274,10 @@ class MissingEventPairsMixin:
                 ):
                     severity = AlertSeverity.MEDIUM
                     description_suffix = "No matching lock event was observed yet, but the mint is still within the expected processing window."
+                probability = self._missing_pair_attack_probability(
+                    bridge,
+                    event_timestamp,
+                )
 
                 alerts.append(
                     self.create_detection_alert(
@@ -195,10 +297,7 @@ class MissingEventPairsMixin:
                         created_at_ts=(
                             event_timestamp if event_timestamp is not None else mint_event.timestamp
                         ),
-                        probability=self._missing_pair_attack_probability(
-                            bridge,
-                            event_timestamp,
-                        ),
+                        probability=probability,
                     )
                 )
                 print(
@@ -207,7 +306,8 @@ class MissingEventPairsMixin:
                     f"correlation_id={correlation_id} "
                     f"event_id={mint_event.id} tx_hash={mint_event.transaction_hash} "
                     f"event_type={mint_event.event_type} "
-                    f"timestamp={event_timestamp} block_number={event_block_number}"
+                    f"timestamp={event_timestamp} block_number={event_block_number} "
+                    f"probability={probability}"
                 )
         print(f"cought {len(alerts)} alerts")
         return alerts

@@ -61,6 +61,7 @@ class Analyser(
     }
     TRANSACTION_CHECKS = {
         "check_event_callers",
+        "incomplete_cross_chain_transactions",
         "source_trace_operations",
         "ronin_proofs",
     }
