@@ -15,7 +15,10 @@ from db.repository.bridge_tables.manual import (
     ThorchainBlockchainTransactions,
     WormholeBlockchainTransactions,
 )
-from db.repository.bridge_tables.pnetwork import BscBlockchainTransactions
+from db.repository.bridge_tables.pnetwork import (
+    PNetworkBitcoinBlockchainTransactions,
+    PNetworkBscBlockchainTransactions,
+)
 
 
 class RoninBlockchainTransactionRepository:
@@ -159,9 +162,14 @@ class WormholeBlockchainTransactionRepository:
 
 
 class PNetworkBlockchainTransactionRepository:
-    def get_all() -> list[BscBlockchainTransactions]:
+    def get_all() -> list[
+        PNetworkBscBlockchainTransactions | PNetworkBitcoinBlockchainTransactions
+    ]:
         session = get_session()
         try:
-            return session.query(BscBlockchainTransactions).all()
+            return [
+                *session.query(PNetworkBscBlockchainTransactions).all(),
+                *session.query(PNetworkBitcoinBlockchainTransactions).all(),
+            ]
         finally:
             session.close()

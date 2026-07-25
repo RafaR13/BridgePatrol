@@ -167,8 +167,11 @@ class MeterIoNormalizedEvent(NormalizedEvent):
 class QubitNormalizedEvent(NormalizedEvent):
     __tablename__ = "qubit_normalized_event"
 
-class BscNormalizedEvent(NormalizedEvent):
-    __tablename__ = "bsc_normalized_events"
+class PNetworkNormalizedEvent(NormalizedEvent):
+    __tablename__ = "pnetwork_normalized_event"
+
+
+BscNormalizedEvent = PNetworkNormalizedEvent
 
 
 BRIDGE_NORMALIZED_EVENT_MODELS = {
@@ -184,7 +187,7 @@ BRIDGE_NORMALIZED_EVENT_MODELS = {
     "thorchain": ThorchainNormalizedEvent,
     "meter.io": MeterIoNormalizedEvent,
     "qubit": QubitNormalizedEvent,
-    "pnetwork": BscNormalizedEvent,
+    "pnetwork": PNetworkNormalizedEvent,
 }
 
 

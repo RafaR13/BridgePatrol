@@ -18,8 +18,6 @@ from db.database import engine
 
 BLOCKCHAIN_TRANSACTION_TABLES = (
     "across_blockchain_transactions",
-    "bsc_blockchain_transactions",
-    "bitcoin_blockchain_transactions",
     "ccip_blockchain_transactions",
     "cctp_blockchain_transactions",
     "debridge_blockchain_transactions",
@@ -28,6 +26,8 @@ BLOCKCHAIN_TRANSACTION_TABLES = (
     "nomad_blockchain_transactions",
     "omnibridge_blockchain_transactions",
     "polygon_blockchain_transactions",
+    "pnetwork_bsc_blockchain_transactions",
+    "pnetwork_bitcoin_blockchain_transactions",
     "qubit_blockchain_transactions",
     "ronin_blockchain_transactions",
     "thorchain_blockchain_transactions",

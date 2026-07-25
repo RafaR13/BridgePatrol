@@ -16,11 +16,12 @@ DANGEROUS_TRACE_OPERATIONS = {"CREATE", "CREATE2", "SELFDESTRUCT"}
 
 class CheckEventCallersMixin:
     def check_event_callers(self) -> list[DetectionAlert]:
-        print("starting analysis for check_event_callers")
+        print("starting analysis for check_event_callers", flush=True)
 
         alerts: list[DetectionAlert] = []
         transactions = self._analysis_blockchain_transactions()
         destination_events_by_tx = self._destination_events_by_transaction()
+        checked_events = 0
 
         for tx in transactions:
 
@@ -36,13 +37,18 @@ class CheckEventCallersMixin:
             # check for dangerous operations, such as create and self destruct
             alerts.extend(self._check_dangerous_trace_operations(tx, call_frames))
 
-            # commented this out for now, while i check if it's really necessary
-            """for event in destination_events_by_tx.get(tx.transaction_hash, []):
+            for event in destination_events_by_tx.get(tx.transaction_hash, []):
+                checked_events += 1
                 alert = self._check_destination_event_caller(tx, event, call_frames)
                 if alert is not None:
-                    alerts.append(alert)"""
+                    alerts.append(alert)
 
-        print(f"cought {len(alerts)} alerts")
+        print(
+            "caught "
+            f"{len(alerts)} alerts in check_event_callers "
+            f"(transactions={len(transactions)}, destination_events={checked_events})",
+            flush=True,
+        )
         return alerts
 
     def _destination_events_by_transaction(self) -> dict[str, list[NormalizedEvent]]:
@@ -219,7 +225,8 @@ class CheckEventCallersMixin:
             f"event_id={event.id} tx_hash={tx.transaction_hash} "
             f"event_type={event.event_type} contract={event.contract_address} "
             f"caller={caller or '<missing>'} operation={operation} "
-            f"expected={expected}"
+            f"expected={expected}",
+            flush=True,
         )
         return alert
 

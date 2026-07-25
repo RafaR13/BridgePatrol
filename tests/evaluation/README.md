@@ -23,6 +23,29 @@ Correctness without labels records counts only:
 python3 -m tests.evaluation.evaluate_correctness --bridge polygon --output tests/evaluation/results/evaluation.jsonl
 ```
 
+Global correctness summary, excluding a bridge. This creates a timestamped
+`evaluation_results_*` directory with one JSON and one Markdown per bridge,
+plus one global JSON and one global Markdown:
+
+```bash
+python3 -m tests.evaluation.evaluate_correctness \
+  --bridge all \
+  --exclude-bridge ronin
+```
+
+Global performance summary, excluding a bridge:
+
+```bash
+python3 -m tests.evaluation.run_performance \
+  --bridge all \
+  --exclude-bridge ronin
+```
+
+The run directory is named `evaluation_results_[YYYYMMDD_HHMMSS]`. Files are
+named `evaluation_[bridge]_[YYYYMMDD_HHMMSS].json` and
+`evaluation_[bridge]_[YYYYMMDD_HHMMSS].md`; the final aggregate files use
+`global` as the bridge name. The JSONL output keeps detailed per-step records.
+
 Correctness with labels calculates `accuracy`, `precision`, `recall`, and
 `false_positive_rate`:
 

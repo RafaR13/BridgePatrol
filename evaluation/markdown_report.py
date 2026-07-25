@@ -25,6 +25,20 @@ def write_markdown_report_from_jsonl(
     return output_path
 
 
+def write_markdown_report_from_records(
+    records: list[dict[str, Any]],
+    markdown_path: str | Path,
+    title: str,
+    raw_jsonl_path: str | Path,
+) -> Path:
+    markdown = build_markdown_report(records, title=title, raw_jsonl_path=Path(raw_jsonl_path))
+
+    output_path = Path(markdown_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(markdown, encoding="utf-8")
+    return output_path
+
+
 def load_run_records(jsonl_path: str | Path, run_id: str) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     path = Path(jsonl_path)
@@ -292,10 +306,27 @@ def _correctness_section(summary: dict[str, Any]) -> list[str]:
 
     predicted_units = summary.get("predicted_positive_units_by_bridge") or {}
     if predicted_units:
+        complete_predicted_units = (
+            summary.get("predicted_positive_complete_cctx_units_by_bridge") or {}
+        )
+        extra_predicted_units = summary.get("predicted_positive_extra_units_by_bridge") or {}
         lines.extend(
             _table(
-                ["Bridge", "Predicted positive CCTX units"],
-                sorted(predicted_units.items()),
+                [
+                    "Bridge",
+                    "Predicted positive units",
+                    "On complete CCTX",
+                    "Extra/incomplete units",
+                ],
+                [
+                    [
+                        bridge,
+                        count,
+                        complete_predicted_units.get(bridge),
+                        extra_predicted_units.get(bridge),
+                    ]
+                    for bridge, count in sorted(predicted_units.items())
+                ],
             )
         )
         lines.append("")

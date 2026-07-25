@@ -24,6 +24,11 @@ EVALUATION_WINDOWS_BY_BRIDGE = {
     "polygon": (1735689600, 1735776000),  # 2025-01-01 00:00:00..2025-01-02 00:00:00 UTC
     "ronin": (1735689600, 1735776000),  # 2025-01-01 00:00:00..2025-01-02 00:00:00 UTC
     "chainswap": (1625944500, 1625946900),  # 2021-07-10 19:15:00..19:55:00 UTC
+    "pnetwork": (1632071900, 1632073500),  # 2021-09-19 17:18:20..17:45:00 UTC
+    "meter.io": (1644066000, 1644073000),  # 2022-02-05 13:00:00..14:56:40 UTC
+    "qubit": (1639984000, 1643322000),  # 2021-12-20..2022-01-27 attack dataset
+    "wormhole": (1643824600, 1643824800),  # 2022-02-02 18:36:40..18:40:00 UTC
+    "thorchain": (1624899000, 1626378000),  # 2021-06-28..2021-07-15 attack datasets
 }
 
 
@@ -147,6 +152,80 @@ def count_cctx_for_bridges(
     }
 
 
+def complete_cctx_units_by_bridge(
+    bridges: list[str],
+    start_ts: int | dict[str, int] | None = None,
+    end_ts: int | dict[str, int] | None = None,
+) -> dict[str, set[str]]:
+    return {
+        bridge: complete_cctx_units(
+            bridge,
+            start_ts=start_ts.get(bridge) if isinstance(start_ts, dict) else start_ts,
+            end_ts=end_ts.get(bridge) if isinstance(end_ts, dict) else end_ts,
+        )
+        for bridge in bridges
+    }
+
+
+def complete_cctx_units(
+    bridge: str,
+    start_ts: int | None = None,
+    end_ts: int | None = None,
+) -> set[str]:
+    from sqlalchemy import or_
+
+    from db.database import get_session
+    from normalization.runners.runner import CCTX_MODELS
+
+    if bridge not in CCTX_MODELS:
+        return set()
+
+    model, id_field = CCTX_MODELS[bridge]
+    id_column = getattr(model, id_field)
+    tx_fields = tuple(
+        field
+        for field in ("src_transaction_hash", "dst_transaction_hash", "refund_transaction_hash")
+        if hasattr(model, field)
+    )
+    selected_columns = [id_column, *(getattr(model, field) for field in tx_fields)]
+    session = get_session()
+    try:
+        query = session.query(*selected_columns)
+        if start_ts is not None or end_ts is not None:
+            filters = []
+            for field in ("src_timestamp", "dst_timestamp", "refund_timestamp"):
+                if not hasattr(model, field):
+                    continue
+                column = getattr(model, field)
+                field_filters = []
+                if start_ts is not None:
+                    field_filters.append(column >= start_ts)
+                if end_ts is not None:
+                    field_filters.append(column <= end_ts)
+                if field_filters:
+                    query_for_field = field_filters[0]
+                    for extra_filter in field_filters[1:]:
+                        query_for_field = query_for_field & extra_filter
+                    filters.append(query_for_field)
+            if filters:
+                query = query.filter(or_(*filters))
+
+        units = set()
+        for row in query.all():
+            cctx_id = row[0]
+            if cctx_id is None:
+                continue
+            cctx_id = str(cctx_id)
+            units.add(f"cctx:{cctx_id}")
+            units.add(f"correlation:{cctx_id}")
+            for tx_hash in row[1:]:
+                if tx_hash is not None:
+                    units.add(f"correlation:{tx_hash}")
+        return units
+    finally:
+        session.close()
+
+
 def total_count(values: dict[str, int | None]) -> int | None:
     known_values = [value for value in values.values() if value is not None]
     if not known_values:
@@ -167,10 +246,19 @@ def summarize_alerts(alerts) -> dict[str, Any]:
     }
 
 
-def predicted_positive_units_by_bridge(alerts) -> dict[str, set[str]]:
+def predicted_positive_units_by_bridge(
+    alerts,
+    signature_types: set[str] | None = None,
+) -> dict[str, set[str]]:
     """Resolve alert predictions to CCTX-level units where possible."""
     event_ids_by_bridge: dict[str, set[int]] = defaultdict(set)
-    for alert in alerts:
+    filtered_alerts = [
+        alert
+        for alert in alerts
+        if signature_types is None or _alert_signature_type(alert) in signature_types
+    ]
+
+    for alert in filtered_alerts:
         bridge = str(alert.bridge)
         for field in ("src_event_id", "dst_event_id"):
             event_id = getattr(alert, field, None)
@@ -180,7 +268,7 @@ def predicted_positive_units_by_bridge(alerts) -> dict[str, set[str]]:
     cctx_by_bridge_event_id = _load_cctx_ids_for_event_ids(event_ids_by_bridge)
 
     units_by_bridge: dict[str, set[str]] = defaultdict(set)
-    for alert in alerts:
+    for alert in filtered_alerts:
         bridge = str(alert.bridge)
         unit = None
         event_cctx_ids = cctx_by_bridge_event_id.get(bridge, {})
@@ -203,6 +291,10 @@ def predicted_positive_units_by_bridge(alerts) -> dict[str, set[str]]:
         units_by_bridge[bridge].add(unit)
 
     return dict(units_by_bridge)
+
+
+def _alert_signature_type(alert) -> str:
+    return str(getattr(alert.signature_type, "value", alert.signature_type))
 
 
 def _load_cctx_ids_for_event_ids(

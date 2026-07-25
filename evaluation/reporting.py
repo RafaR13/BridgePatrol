@@ -47,3 +47,15 @@ def build_reporter(
     if output_path is None:
         return None
     return EvaluationReporter(output_path=output_path, run_id=run_id)
+
+
+def write_json_summary(output_path: str | Path | None, payload: dict[str, Any]) -> None:
+    if output_path is None:
+        return
+
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, default=str, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )

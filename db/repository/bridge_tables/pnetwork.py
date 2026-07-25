@@ -4,12 +4,16 @@ from db.database import Base
 from db.repository.common_models import BlockchainTransaction
 
 
-class BscBlockchainTransactions(BlockchainTransaction):
-    __tablename__ = "bsc_blockchain_transactions"
+class PNetworkBscBlockchainTransactions(BlockchainTransaction):
+    __tablename__ = "pnetwork_bsc_blockchain_transactions"
 
 
-class BitcoinBlockchainTransactions(BlockchainTransaction):
-    __tablename__ = "bitcoin_blockchain_transactions"
+class PNetworkBitcoinBlockchainTransactions(BlockchainTransaction):
+    __tablename__ = "pnetwork_bitcoin_blockchain_transactions"
+
+
+BscBlockchainTransactions = PNetworkBscBlockchainTransactions
+BitcoinBlockchainTransactions = PNetworkBitcoinBlockchainTransactions
 
 
 class PNetworkCrossChainTransactions(Base):

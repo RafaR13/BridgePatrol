@@ -144,6 +144,34 @@ def test_detects_mint_without_lock_for_every_configured_deposit_flow(
     assert alerts[0].dst_event_id == destination.id
 
 
+def test_lock_without_mint_probability_uses_end_boundary(synthetic_analysis):
+    analyser = synthetic_analysis("across", [])
+    analyser._set_analysis_window(start_ts=1_000, end_ts=2_000)
+
+    probability = analyser._missing_pair_attack_probability(
+        "across",
+        1_010,
+        missing_side="destination",
+    )
+
+    assert "990s from the end analysis-window boundary" in probability
+    assert "missing_side=destination" in probability
+
+
+def test_mint_without_lock_probability_uses_start_boundary(synthetic_analysis):
+    analyser = synthetic_analysis("across", [])
+    analyser._set_analysis_window(start_ts=1_000, end_ts=2_000)
+
+    probability = analyser._missing_pair_attack_probability(
+        "across",
+        1_990,
+        missing_side="source",
+    )
+
+    assert "990s from the start analysis-window boundary" in probability
+    assert "missing_side=source" in probability
+
+
 @pytest.mark.parametrize(
     ("bridge", "flow_type", "flow"),
     AMOUNT_CHECKED_FLOWS,

@@ -96,6 +96,7 @@ def calculate_metrics(matrix: ConfusionMatrix) -> dict[str, float | int | None]:
     fn = matrix.false_negatives
 
     return {
+        "total": matrix.total,
         "true_positives": tp,
         "false_positives": fp,
         "true_negatives": tn,
@@ -131,6 +132,8 @@ def calculate_bridge_baseline_metrics(
     predicted_positive_units_by_bridge: dict[str, set[str]],
     cctx_analyzed_by_bridge: dict[str, int | None],
     expected_positive_bridges: set[str],
+    complete_cctx_units_by_bridge: dict[str, set[str]] | None = None,
+    predicted_positive_complete_counts_by_bridge: dict[str, int] | None = None,
 ) -> dict[str, float | int | None]:
     """Calculate CCTX-level metrics from bridge-level ground truth.
 
@@ -145,16 +148,30 @@ def calculate_bridge_baseline_metrics(
 
     for bridge, cctx_count in cctx_analyzed_by_bridge.items():
         total = cctx_count or 0
-        predicted_positive = len(predicted_positive_units_by_bridge.get(bridge, set()))
+        predicted_units = predicted_positive_units_by_bridge.get(bridge, set())
+        predicted_positive = len(predicted_units)
 
         if bridge in expected_positive_bridges:
             bridge_tp = min(predicted_positive, total)
             true_positives += bridge_tp
             false_negatives += max(total - bridge_tp, 0)
         else:
-            bridge_fp = min(predicted_positive, total) if total else predicted_positive
-            false_positives += bridge_fp
-            true_negatives += max(total - bridge_fp, 0)
+            if predicted_positive_complete_counts_by_bridge is not None:
+                predicted_on_complete_cctx = predicted_positive_complete_counts_by_bridge.get(
+                    bridge,
+                    0,
+                )
+                false_positives += predicted_positive
+                true_negatives += max(total - predicted_on_complete_cctx, 0)
+            elif complete_cctx_units_by_bridge is not None:
+                complete_units = complete_cctx_units_by_bridge.get(bridge, set())
+                predicted_on_complete_cctx = len(predicted_units & complete_units)
+                false_positives += predicted_positive
+                true_negatives += max(total - predicted_on_complete_cctx, 0)
+            else:
+                bridge_fp = min(predicted_positive, total) if total else predicted_positive
+                false_positives += bridge_fp
+                true_negatives += max(total - bridge_fp, 0)
 
     return calculate_metrics(
         ConfusionMatrix(

@@ -70,7 +70,11 @@ class MissingEventPairsMixin:
                             f"{description_suffix}"
                         ),
                         created_at_ts=timestamp,
-                        probability=self._missing_pair_attack_probability(bridge, timestamp),
+                        probability=self._missing_pair_attack_probability(
+                            bridge,
+                            timestamp,
+                            missing_side="source",
+                        ),
                     )
                 )
                 continue
@@ -99,7 +103,11 @@ class MissingEventPairsMixin:
                         f"{description_suffix}"
                     ),
                     created_at_ts=timestamp,
-                    probability=self._missing_pair_attack_probability(bridge, timestamp),
+                    probability=self._missing_pair_attack_probability(
+                        bridge,
+                        timestamp,
+                        missing_side="destination",
+                    ),
                 )
             )
 
@@ -110,19 +118,36 @@ class MissingEventPairsMixin:
         self,
         bridge: str,
         event_timestamp: int | None,
+        missing_side: str | None = None,
     ) -> str:
         if event_timestamp is None:
             return "UNKNOWN: event timestamp is unavailable."
 
-        window_boundaries = [
-            boundary
-            for boundary in (
-                getattr(self, "_analysis_start_ts", None),
-                getattr(self, "_analysis_end_ts", None),
-            )
-            if boundary is not None
-        ]
-        if not window_boundaries:
+        start_ts = getattr(self, "_analysis_start_ts", None)
+        end_ts = getattr(self, "_analysis_end_ts", None)
+        boundary = None
+        boundary_name = None
+        if missing_side == "destination":
+            boundary = end_ts
+            boundary_name = "end"
+        elif missing_side == "source":
+            boundary = start_ts
+            boundary_name = "start"
+
+        if boundary is None:
+            window_boundaries = [
+                candidate
+                for candidate in (start_ts, end_ts)
+                if candidate is not None
+            ]
+            if window_boundaries:
+                boundary = min(
+                    window_boundaries,
+                    key=lambda candidate: abs(event_timestamp - candidate),
+                )
+                boundary_name = "closest"
+
+        if boundary is None:
             return "HIGH: no analysis time window was configured."
 
         bridge_timeout = BRIDGE_CCTX_TIMEOUTS.get(bridge)
@@ -130,9 +155,7 @@ class MissingEventPairsMixin:
             bridge_timeout.typical_seconds if bridge_timeout is not None else 15 * 60
         )
         max_timeout = bridge_timeout.max_seconds if bridge_timeout is not None else 60 * 60
-        distance_to_window_boundary = min(
-            abs(event_timestamp - boundary) for boundary in window_boundaries
-        )
+        distance_to_window_boundary = abs(event_timestamp - boundary)
 
         if distance_to_window_boundary <= typical_timeout:
             probability_score = 0.05 + (
@@ -160,8 +183,9 @@ class MissingEventPairsMixin:
 
         return (
             f"{label} ({probability_score:.0%}): event is "
-            f"{distance_to_window_boundary}s from the closest analysis-window "
-            f"boundary; bridge typical timeout={typical_timeout}s; "
+            f"{distance_to_window_boundary}s from the {boundary_name} analysis-window "
+            f"boundary; missing_side={missing_side or 'unknown'}; "
+            f"bridge typical timeout={typical_timeout}s; "
             f"bridge max timeout={max_timeout}s."
         )
 
@@ -202,6 +226,7 @@ class MissingEventPairsMixin:
                 probability = self._missing_pair_attack_probability(
                     bridge,
                     event_timestamp,
+                    missing_side="destination",
                 )
 
                 alerts.append(
@@ -277,6 +302,7 @@ class MissingEventPairsMixin:
                 probability = self._missing_pair_attack_probability(
                     bridge,
                     event_timestamp,
+                    missing_side="source",
                 )
 
                 alerts.append(
