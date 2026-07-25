@@ -35,6 +35,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run performance evaluation.")
     parser.add_argument("--bridge", required=True, help="Bridge name, or 'all'.")
     parser.add_argument(
+        "--phase",
+        choices=("all", "normalization", "signature-detection"),
+        default="all",
+        help="Evaluation phase to run. Defaults to all.",
+    )
+    parser.add_argument(
         "--exclude-bridge",
         action="append",
         default=[],
@@ -86,6 +92,7 @@ def build_performance_summary(
     alerts: list,
     evaluation_windows: dict[str, dict[str, int]],
     normalization_results: list[dict],
+    normalization_metrics: dict,
 ) -> dict:
     cctx_by_bridge = count_cctx_for_bridges(
         bridges,
@@ -117,12 +124,100 @@ def build_performance_summary(
         },
         "cctx_analyzed": cctx_analyzed,
         "cctx_analyzed_by_bridge": cctx_by_bridge,
+        "phase": args.phase,
         "normalization": normalization_results,
+        "normalization_metrics": normalization_metrics,
         **summarize_alerts(alerts),
     }
     if cctx_analyzed:
         summary["alerts_per_cctx"] = len(alerts) / cctx_analyzed
     return summary
+
+
+def summarize_normalization_metrics(records: list[dict]) -> dict:
+    by_bridge: dict[str, dict] = {}
+
+    for record in records:
+        bridge = record.get("bridge")
+        if not bridge:
+            continue
+        metrics = by_bridge.setdefault(
+            bridge,
+            {
+                "jobs": 0,
+                "duration_ms": 0.0,
+                "tables": 0,
+                "rows_seen": 0,
+                "inserted": 0,
+                "skipped": 0,
+            },
+        )
+
+        if record.get("event_type") == "normalization_total":
+            metrics["jobs"] += int(record.get("jobs") or 0)
+            metrics["duration_ms"] += float(record.get("duration_ms") or 0)
+        elif record.get("event_type") == "normalization_table_summary":
+            metrics["tables"] += 1
+            metrics["rows_seen"] += int(record.get("rows_seen") or 0)
+            metrics["inserted"] += int(record.get("inserted") or 0)
+            metrics["skipped"] += int(record.get("skipped") or 0)
+
+    totals = {
+        "bridges": len(by_bridge),
+        "jobs": sum(metrics["jobs"] for metrics in by_bridge.values()),
+        "duration_ms": sum(metrics["duration_ms"] for metrics in by_bridge.values()),
+        "tables": sum(metrics["tables"] for metrics in by_bridge.values()),
+        "rows_seen": sum(metrics["rows_seen"] for metrics in by_bridge.values()),
+        "inserted": sum(metrics["inserted"] for metrics in by_bridge.values()),
+        "skipped": sum(metrics["skipped"] for metrics in by_bridge.values()),
+    }
+    totals["ms_per_row_seen"] = (
+        None
+        if totals["rows_seen"] == 0
+        else totals["duration_ms"] / totals["rows_seen"]
+    )
+    totals["normalized_events_seen"] = totals["rows_seen"]
+    totals["normalized_events_inserted"] = totals["inserted"]
+    totals["normalized_events_skipped"] = totals["skipped"]
+
+    for metrics in by_bridge.values():
+        metrics["ms_per_row_seen"] = (
+            None
+            if metrics["rows_seen"] == 0
+            else metrics["duration_ms"] / metrics["rows_seen"]
+        )
+        metrics["normalized_events_seen"] = metrics["rows_seen"]
+        metrics["normalized_events_inserted"] = metrics["inserted"]
+        metrics["normalized_events_skipped"] = metrics["skipped"]
+
+    return {
+        "total": totals,
+        "by_bridge": dict(sorted(by_bridge.items())),
+    }
+
+
+def should_run_normalization_phase(args: argparse.Namespace, bridge: str) -> bool:
+    return (
+        args.phase in ("all", "normalization")
+        and not args.skip_normalization
+        and should_run_normalization(bridge)
+    )
+
+
+def normalization_skip_payload(args: argparse.Namespace, bridge: str) -> dict | None:
+    if args.phase == "signature-detection":
+        return None
+    if args.skip_normalization:
+        reason = "requested_by_flag"
+    else:
+        reason = normalization_skip_reason(bridge)
+    if reason is None:
+        return None
+    return {
+        "bridge": bridge,
+        "skipped": True,
+        "reason": reason,
+    }
 
 
 def write_performance_artifacts(
@@ -189,21 +284,13 @@ def main() -> int:
     bridge_summaries = {}
     for bridge in bridges:
         bridge_normalization_results = []
-        if args.skip_normalization or not should_run_normalization(bridge):
-            skipped_reason = (
-                "requested_by_flag"
-                if args.skip_normalization
-                else normalization_skip_reason(bridge)
-            )
-            payload = {
-                "bridge": bridge,
-                "skipped": True,
-                "reason": skipped_reason,
-            }
+        skipped_payload = normalization_skip_payload(args, bridge)
+        if skipped_payload is not None:
+            payload = skipped_payload
             normalization_results.append(payload)
             bridge_normalization_results.append(payload)
             reporter.write("normalization_skipped", payload)
-        else:
+        elif should_run_normalization_phase(args, bridge):
             normalization_result = run_normalization_for_bridge(
                 bridge,
                 report_path=result_paths.details_jsonl,
@@ -212,26 +299,29 @@ def main() -> int:
             normalization_results.append(normalization_result)
             bridge_normalization_results.append(normalization_result)
 
-        bridge_window = evaluation_windows[bridge]
-        bridge_alerts = run_for_bridges(
-            [bridge],
-            start_ts=bridge_window["start_ts"],
-            end_ts=bridge_window["end_ts"],
-            persist=args.persist_alerts,
-            report_path=result_paths.details_jsonl,
-            run_id=run_id,
-        )
+        bridge_alerts = []
+        if args.phase in ("all", "signature-detection"):
+            bridge_window = evaluation_windows[bridge]
+            bridge_alerts = run_for_bridges(
+                [bridge],
+                start_ts=bridge_window["start_ts"],
+                end_ts=bridge_window["end_ts"],
+                persist=args.persist_alerts,
+                report_path=result_paths.details_jsonl,
+                run_id=run_id,
+            )
         alerts.extend(bridge_alerts)
+        records = load_run_records(result_paths.details_jsonl, run_id)
         bridge_summary = build_performance_summary(
             args,
             [bridge],
             bridge_alerts,
             evaluation_windows,
             bridge_normalization_results,
+            summarize_normalization_metrics(filter_records_for_bridge(records, bridge)),
         )
         bridge_summaries[bridge] = bridge_summary
         reporter.write("performance_bridge_summary", bridge_summary)
-        records = load_run_records(result_paths.details_jsonl, run_id)
         write_performance_artifacts(
             result_paths,
             run_id,
@@ -246,6 +336,7 @@ def main() -> int:
         alerts,
         evaluation_windows,
         normalization_results,
+        summarize_normalization_metrics(load_run_records(result_paths.details_jsonl, run_id)),
     )
     summary["bridge_summaries"] = bridge_summaries
     reporter.write("performance_summary", summary)
@@ -266,6 +357,7 @@ def main() -> int:
     print(f"markdown_output={global_markdown}")
     print(f"bridges={','.join(bridges)}")
     print(f"cctx_analyzed={summary['cctx_analyzed']}")
+    print(f"normalization_metrics={summary['normalization_metrics']['total']}")
     print(f"alerts_detected={len(alerts)}")
     return 0
 

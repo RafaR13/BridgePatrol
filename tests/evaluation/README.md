@@ -41,6 +41,17 @@ python3 -m tests.evaluation.run_performance \
   --exclude-bridge ronin
 ```
 
+Performance can run all phases, only normalization, or only signature detection:
+
+```bash
+python3 -m tests.evaluation.run_performance --bridge all --phase all
+python3 -m tests.evaluation.run_performance --bridge all --phase normalization
+python3 -m tests.evaluation.run_performance --bridge all --phase signature-detection
+```
+
+The performance JSON/Markdown includes `normalization_metrics`, with normalized
+rows seen, inserted rows, skipped rows, total duration, and ms per row.
+
 The run directory is named `evaluation_results_[YYYYMMDD_HHMMSS]`. Files are
 named `evaluation_[bridge]_[YYYYMMDD_HHMMSS].json` and
 `evaluation_[bridge]_[YYYYMMDD_HHMMSS].md`; the final aggregate files use

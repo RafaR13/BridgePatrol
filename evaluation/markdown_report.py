@@ -80,7 +80,7 @@ def build_markdown_report(
         "",
     ]
 
-    lines.extend(_normalization_section(records))
+    lines.extend(_normalization_section(records, latest_summary))
     lines.extend(_performance_section(records))
     lines.extend(_alerts_section(latest_summary))
     lines.extend(_correctness_section(latest_summary))
@@ -96,7 +96,10 @@ def _latest_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
     return records[-1] if records else {}
 
 
-def _normalization_section(records: list[dict[str, Any]]) -> list[str]:
+def _normalization_section(
+    records: list[dict[str, Any]],
+    latest_summary: dict[str, Any],
+) -> list[str]:
     total_timers = [record for record in records if record.get("event_type") == "normalization_total"]
     table_timers = [record for record in records if record.get("event_type") == "normalization_table_timer"]
     table_summaries = [
@@ -105,7 +108,78 @@ def _normalization_section(records: list[dict[str, Any]]) -> list[str]:
     skipped = [record for record in records if record.get("event_type") == "normalization_skipped"]
 
     lines = ["## Normalization", ""]
-    if not total_timers and not table_timers and not table_summaries and not skipped:
+    normalization_metrics = latest_summary.get("normalization_metrics") or {}
+    normalization_totals = normalization_metrics.get("total") or {}
+    normalization_by_bridge = normalization_metrics.get("by_bridge") or {}
+
+    if normalization_totals:
+        lines.extend(
+            _table(
+                [
+                    "Scope",
+                    "Bridges",
+                    "Jobs",
+                    "Tables",
+                    "Rows seen",
+                    "Inserted",
+                    "Skipped",
+                    "Duration ms",
+                    "ms / row",
+                ],
+                [
+                    [
+                        "total",
+                        normalization_totals.get("bridges"),
+                        normalization_totals.get("jobs"),
+                        normalization_totals.get("tables"),
+                        normalization_totals.get("rows_seen"),
+                        normalization_totals.get("inserted"),
+                        normalization_totals.get("skipped"),
+                        _format_ms(normalization_totals.get("duration_ms")),
+                        _format_ms(normalization_totals.get("ms_per_row_seen")),
+                    ]
+                ],
+            )
+        )
+        lines.append("")
+
+    if normalization_by_bridge:
+        lines.extend(
+            _table(
+                [
+                    "Bridge",
+                    "Jobs",
+                    "Tables",
+                    "Rows seen",
+                    "Inserted",
+                    "Skipped",
+                    "Duration ms",
+                    "ms / row",
+                ],
+                [
+                    [
+                        bridge,
+                        metrics.get("jobs"),
+                        metrics.get("tables"),
+                        metrics.get("rows_seen"),
+                        metrics.get("inserted"),
+                        metrics.get("skipped"),
+                        _format_ms(metrics.get("duration_ms")),
+                        _format_ms(metrics.get("ms_per_row_seen")),
+                    ]
+                    for bridge, metrics in sorted(normalization_by_bridge.items())
+                ],
+            )
+        )
+        lines.append("")
+
+    if (
+        not normalization_totals
+        and not total_timers
+        and not table_timers
+        and not table_summaries
+        and not skipped
+    ):
         return lines + ["No normalization records for this run.", ""]
 
     if skipped:
