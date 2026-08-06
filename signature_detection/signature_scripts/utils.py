@@ -52,6 +52,12 @@ class AnalyserUtilsMixin:
         self._analysis_start_ts = start_ts
         self._analysis_has_time_filter = start_ts is not None or end_ts is not None
         self._transaction_context = None
+        self._analysis_blockchain_transactions_cache = None
+        self._analysis_blockchain_transactions_by_hash_cache = None
+        self._latest_block_numbers_by_blockchain = None
+        self._latest_block_number = None
+        self._cross_chain_transactions_cache = None
+        self._transfers_by_transaction_hash_cache = {}
         self._events_cache = {}
         self._event_pairs_cache = {}
 
@@ -59,9 +65,14 @@ class AnalyserUtilsMixin:
             self._analysis_end_ts = end_ts
             return
 
+        latest_timestamp_fetcher = getattr(self, "fetch_latest_transaction_timestamp", None)
+        if latest_timestamp_fetcher is not None:
+            self._analysis_end_ts = latest_timestamp_fetcher(start_ts=start_ts)
+            return
+
         tx_timestamps = [
             tx.timestamp
-            for tx in self.fetch_blockchain_transactions()
+            for tx in self._analysis_blockchain_transactions()
             if getattr(tx, "timestamp", None) is not None
         ]
         self._analysis_end_ts = max(tx_timestamps) if tx_timestamps else None
@@ -103,7 +114,51 @@ class AnalyserUtilsMixin:
         ]
 
     def _analysis_blockchain_transactions(self) -> list:
-        return self._filter_objects_for_analysis_window(self.fetch_blockchain_transactions())
+        if self._analysis_blockchain_transactions_cache is not None:
+            return self._analysis_blockchain_transactions_cache
+
+        try:
+            transactions = self.fetch_blockchain_transactions(
+                start_ts=self._analysis_start_ts,
+                end_ts=self._analysis_end_ts,
+            )
+        except TypeError:
+            transactions = self.fetch_blockchain_transactions()
+            transactions = self._filter_objects_for_analysis_window(transactions)
+
+        self._analysis_blockchain_transactions_cache = transactions
+        return transactions
+
+    def _analysis_blockchain_transactions_by_hash(self) -> dict[str, object]:
+        if self._analysis_blockchain_transactions_by_hash_cache is not None:
+            return self._analysis_blockchain_transactions_by_hash_cache
+
+        self._analysis_blockchain_transactions_by_hash_cache = {
+            tx.transaction_hash: tx
+            for tx in self._analysis_blockchain_transactions()
+            if getattr(tx, "transaction_hash", None) is not None
+        }
+        return self._analysis_blockchain_transactions_by_hash_cache
+
+    def _analysis_cross_chain_transactions(self) -> list:
+        if self._cross_chain_transactions_cache is not None:
+            return self._cross_chain_transactions_cache
+
+        fetcher = getattr(self, "fetch_cross_chain_transactions", None)
+        if fetcher is None:
+            self._cross_chain_transactions_cache = []
+            return self._cross_chain_transactions_cache
+
+        try:
+            cctxs = fetcher(
+                start_ts=self._analysis_start_ts,
+                end_ts=self._analysis_end_ts,
+            )
+        except TypeError:
+            cctxs = fetcher()
+
+        self._cross_chain_transactions_cache = cctxs
+        return cctxs
 
     def _events_by_event_type(
         self, event_type: NormalizedEventType, bridge: str | None = None
@@ -113,7 +168,18 @@ class AnalyserUtilsMixin:
         if cache_key in self._events_cache:
             return self._events_cache[cache_key]
 
-        events = NormalizedEventRepository.get_events_by_event_type(event_type, bridge_name)
+        try:
+            events = NormalizedEventRepository.get_events_by_event_type(
+                event_type,
+                bridge_name,
+                start_ts=self._analysis_start_ts,
+                end_ts=self._analysis_end_ts,
+            )
+        except TypeError:
+            events = NormalizedEventRepository.get_events_by_event_type(
+                event_type,
+                bridge_name,
+            )
         filtered_events = self._filter_events_for_analysis_window(events)
         self._events_cache[cache_key] = filtered_events
         return filtered_events
@@ -194,7 +260,7 @@ class AnalyserUtilsMixin:
         if self._transaction_context is not None:
             return self._transaction_context
 
-        blockchain_transactions = self.fetch_blockchain_transactions()
+        blockchain_transactions = self._analysis_blockchain_transactions()
         tx_block_numbers = {
             tx.transaction_hash: tx.block_number
             for tx in blockchain_transactions
@@ -208,21 +274,79 @@ class AnalyserUtilsMixin:
         self._transaction_context = (tx_block_numbers, tx_timestamps)
         return self._transaction_context
 
+    def _analysis_latest_block_numbers_by_blockchain(self) -> dict[str, int]:
+        if self._latest_block_numbers_by_blockchain is not None:
+            return self._latest_block_numbers_by_blockchain
+
+        latest_by_blockchain: dict[str, int] = {}
+        latest_block_number = None
+        for tx in self._analysis_blockchain_transactions():
+            block_number = getattr(tx, "block_number", None)
+            if block_number is None:
+                continue
+
+            if latest_block_number is None or block_number > latest_block_number:
+                latest_block_number = block_number
+
+            blockchain = self._normalized_value(getattr(tx, "blockchain", None))
+            if blockchain is None:
+                continue
+            current = latest_by_blockchain.get(blockchain)
+            if current is None or block_number > current:
+                latest_by_blockchain[blockchain] = block_number
+
+        self._latest_block_numbers_by_blockchain = latest_by_blockchain
+        self._latest_block_number = latest_block_number
+        return self._latest_block_numbers_by_blockchain
+
+    def _analysis_latest_block_number(self, blockchain: str | None = None) -> int | None:
+        latest_by_blockchain = self._analysis_latest_block_numbers_by_blockchain()
+        normalized_blockchain = self._normalized_value(blockchain)
+        if normalized_blockchain is not None:
+            latest_block_number = latest_by_blockchain.get(normalized_blockchain)
+            if latest_block_number is not None:
+                return latest_block_number
+        return self._latest_block_number
+
+    def _transfers_by_transaction_hash(self, transfer_repository) -> dict[str, list]:
+        cache_key = id(transfer_repository)
+        if cache_key in self._transfers_by_transaction_hash_cache:
+            return self._transfers_by_transaction_hash_cache[cache_key]
+
+        transaction_hashes = {
+            tx.transaction_hash
+            for tx in self._analysis_blockchain_transactions()
+            if getattr(tx, "transaction_hash", None) is not None
+        }
+
+        fetch_by_hashes = getattr(transfer_repository, "get_by_transaction_hashes", None)
+        if fetch_by_hashes is not None:
+            transfers = fetch_by_hashes(transaction_hashes)
+        else:
+            transfers = [
+                transfer
+                for transfer in transfer_repository.get_all()
+                if getattr(transfer, "transaction_hash", None) in transaction_hashes
+            ]
+
+        transfers_by_tx: dict[str, list] = {}
+        for transfer in transfers:
+            transfers_by_tx.setdefault(transfer.transaction_hash, []).append(transfer)
+
+        self._transfers_by_transaction_hash_cache[cache_key] = transfers_by_tx
+        return transfers_by_tx
+
     def _event_is_recent(
         self,
         bridge: str,
         event_timestamp: int | None,
         event_block_number: int | None,
+        event_blockchain: str | None = None,
     ) -> bool:
         end_ts = self._analysis_end_ts
         time_threshold = TIME_THRESHOLDS.get(bridge, 3600)
         number_of_blocks_to_confirm = BlockConfirmationThresholds.get(bridge, 12)
-        tx_block_numbers = [
-            tx.block_number
-            for tx in self.fetch_blockchain_transactions()
-            if getattr(tx, "block_number", None) is not None
-        ]
-        latest_block_number = max(tx_block_numbers) if tx_block_numbers else None
+        latest_block_number = self._analysis_latest_block_number(event_blockchain)
 
         is_recent_block = (
             latest_block_number is not None

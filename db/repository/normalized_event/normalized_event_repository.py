@@ -1,4 +1,4 @@
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 
 from db.database import get_session
 
@@ -77,18 +77,32 @@ class NormalizedEventRepository:
         finally:
             session.close()
 
-    def get_events_by_event_type(event_type: str, bridge_name: str) -> list[NormalizedEvent]:
+    def get_events_by_event_type(
+        event_type: str,
+        bridge_name: str,
+        start_ts: int | None = None,
+        end_ts: int | None = None,
+    ) -> list[NormalizedEvent]:
         model = get_normalized_event_model(bridge_name)
         session = get_session()
         try:
-            return (
-                session.query(model)
-                .filter(
-                    model.event_type == event_type,
-                    model.bridge == bridge_name,
-                )
-                .all()
+            query = session.query(model).filter(
+                model.event_type == event_type,
+                model.bridge == bridge_name,
             )
+            if start_ts is not None or end_ts is not None:
+                timestamp_filters = []
+                if start_ts is not None:
+                    timestamp_filters.append(model.timestamp >= start_ts)
+                if end_ts is not None:
+                    timestamp_filters.append(model.timestamp <= end_ts)
+                query = query.filter(
+                    or_(
+                        model.timestamp.is_(None),
+                        and_(*timestamp_filters),
+                    )
+                )
+            return query.all()
         finally:
             session.close()
 

@@ -24,12 +24,18 @@ class EvaluationResultPaths:
 def build_evaluation_result_paths(
     results_dir: str | Path | None = None,
     details_output: str | Path | None = None,
+    evaluation_type: str | None = None,
 ) -> EvaluationResultPaths:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    directory_name = (
+        f"evaluation_results_{timestamp}_{evaluation_type}"
+        if evaluation_type
+        else f"evaluation_results_{timestamp}"
+    )
     directory = (
         Path(results_dir)
         if results_dir is not None
-        else DEFAULT_RESULTS_ROOT / f"evaluation_results_{timestamp}"
+        else DEFAULT_RESULTS_ROOT / directory_name
     )
     details_jsonl = (
         Path(details_output)

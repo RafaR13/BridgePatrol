@@ -45,11 +45,7 @@ class TokenContractAttacksMixin:
 
         # 1 - fetch lock/burn events
         blockchain_transactions = self._analysis_blockchain_transactions()
-        txs_by_hash = {
-            tx.transaction_hash: tx
-            for tx in blockchain_transactions
-            if tx.transaction_hash is not None
-        }
+        txs_by_hash = self._analysis_blockchain_transactions_by_hash()
         self._debug(
             "token_contract_attacks: "
             f"transactions={len(blockchain_transactions)} indexed_transactions={len(txs_by_hash)}"
@@ -58,12 +54,10 @@ class TokenContractAttacksMixin:
         transfers_by_tx: dict[str, list] = {}
         transfer_repository = TRANSFER_REPOSITORIES.get(self.bridge)
         if transfer_repository is not None:
-            transfers = transfer_repository.get_all()
-            for transfer in transfers:
-                transfers_by_tx.setdefault(transfer.transaction_hash, []).append(transfer)
+            transfers_by_tx = self._transfers_by_transaction_hash(transfer_repository)
             self._debug(
                 "token_contract_attacks: "
-                f"transfers={len(transfers)} txs_with_transfers={len(transfers_by_tx)}"
+                f"txs_with_transfers={len(transfers_by_tx)}"
             )
         else:
             self._debug("token_contract_attacks: no transfer repository configured")

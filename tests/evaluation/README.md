@@ -24,8 +24,8 @@ python3 -m tests.evaluation.evaluate_correctness --bridge polygon --output tests
 ```
 
 Global correctness summary, excluding a bridge. This creates a timestamped
-`evaluation_results_*` directory with one JSON and one Markdown per bridge,
-plus one global JSON and one global Markdown:
+`evaluation_results_*_correctness` directory with one JSON and one Markdown per
+bridge, plus one global JSON and one global Markdown:
 
 ```bash
 python3 -m tests.evaluation.evaluate_correctness \
@@ -52,7 +52,8 @@ python3 -m tests.evaluation.run_performance --bridge all --phase signature-detec
 The performance JSON/Markdown includes `normalization_metrics`, with normalized
 rows seen, inserted rows, skipped rows, total duration, and ms per row.
 
-The run directory is named `evaluation_results_[YYYYMMDD_HHMMSS]`. Files are
+The run directory is named
+`evaluation_results_[YYYYMMDD_HHMMSS]_[correctness|performance]`. Files are
 named `evaluation_[bridge]_[YYYYMMDD_HHMMSS].json` and
 `evaluation_[bridge]_[YYYYMMDD_HHMMSS].md`; the final aggregate files use
 `global` as the bridge name. The JSONL output keeps detailed per-step records.

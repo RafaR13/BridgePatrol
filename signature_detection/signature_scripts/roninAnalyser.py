@@ -30,14 +30,22 @@ class RoninAnalyser(Analyser):
     def __init__(self):
         super().__init__("ronin")
 
-    def fetch_blockchain_transactions(self):
-        return RoninBlockchainTransactionRepository.get_all()
+    def fetch_blockchain_transactions(
+        self, start_ts: int | None = None, end_ts: int | None = None
+    ):
+        return RoninBlockchainTransactionRepository.get_by_time_window(start_ts, end_ts)
+
+    def fetch_latest_transaction_timestamp(self, start_ts: int | None = None):
+        return RoninBlockchainTransactionRepository.get_latest_timestamp(start_ts)
 
     def fetch_blockchain_transactions_with_receipts_with_signatures(self):
         transactions = (
-            RoninBlockchainTransactionRepository.get_transactions_with_receipt_with_signatures()
+            RoninBlockchainTransactionRepository.get_transactions_with_receipt_with_signatures(
+                self._analysis_start_ts,
+                self._analysis_end_ts,
+            )
         )
-        return self._filter_objects_for_analysis_window(transactions)
+        return transactions
 
     def analyse_bridge_specific_signatures(self) -> List[DetectionAlert]:
         alerts = []

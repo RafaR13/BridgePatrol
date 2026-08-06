@@ -266,6 +266,7 @@ def main() -> int:
     result_paths = build_evaluation_result_paths(
         results_dir=args.results_dir,
         details_output=args.output,
+        evaluation_type="performance",
     )
     reporter = EvaluationReporter(result_paths.details_jsonl, run_id=run_id)
     bridges = resolve_bridge_selection(args.bridge)

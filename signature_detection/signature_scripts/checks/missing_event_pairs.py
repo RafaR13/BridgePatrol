@@ -16,6 +16,9 @@ class MissingEventPairsMixin:
     def _cctx_side_timestamp(self, cctx, side: str) -> int | None:
         return getattr(cctx, f"{side}_timestamp", None)
 
+    def _cctx_side_blockchain(self, cctx, side: str) -> str | None:
+        return getattr(cctx, f"{side}_blockchain", None)
+
     def incomplete_cross_chain_transactions(
         self,
         bridge: str,
@@ -33,10 +36,7 @@ class MissingEventPairsMixin:
         alerts = []
 
         if cctxs is None:
-            fetcher = getattr(self, "fetch_cross_chain_transactions", None)
-            if fetcher is None:
-                return alerts
-            cctxs = fetcher()
+            cctxs = self._analysis_cross_chain_transactions()
 
         for cctx in cctxs:
             has_source = self._side_has_transaction(cctx, "src")
@@ -52,7 +52,12 @@ class MissingEventPairsMixin:
                 transaction_hash = getattr(cctx, "dst_transaction_hash", None)
                 severity = AlertSeverity.HIGH
                 description_suffix = "Destination transaction exists, but no source transaction is present in the CCTX row."
-                if self._event_is_recent(bridge, timestamp, None):
+                if self._event_is_recent(
+                    bridge,
+                    timestamp,
+                    None,
+                    self._cctx_side_blockchain(cctx, "dst"),
+                ):
                     severity = AlertSeverity.MEDIUM
                     description_suffix = "Destination transaction exists without a source transaction, but it is still within the expected processing window."
                 alerts.append(
@@ -85,7 +90,12 @@ class MissingEventPairsMixin:
             transaction_hash = getattr(cctx, "src_transaction_hash", None)
             severity = AlertSeverity.MEDIUM
             description_suffix = "Source transaction exists, but no destination transaction is present in the CCTX row."
-            if self._event_is_recent(bridge, timestamp, None):
+            if self._event_is_recent(
+                bridge,
+                timestamp,
+                None,
+                self._cctx_side_blockchain(cctx, "src"),
+            ):
                 severity = AlertSeverity.LOW
                 description_suffix = "Source transaction exists without a destination transaction, but it is still within the expected processing window."
             alerts.append(
@@ -220,6 +230,7 @@ class MissingEventPairsMixin:
                     bridge,
                     event_timestamp,
                     event_block_number,
+                    getattr(lock_event, "blockchain", None),
                 ):
                     severity = AlertSeverity.LOW
                     description_suffix = "No matching mint event was observed yet, but the lock is still within the expected processing window."
@@ -296,9 +307,20 @@ class MissingEventPairsMixin:
                     bridge,
                     event_timestamp,
                     event_block_number,
+                    getattr(mint_event, "blockchain", None),
                 ):
                     severity = AlertSeverity.MEDIUM
                     description_suffix = "No matching lock event was observed yet, but the mint is still within the expected processing window."
+                if (
+                    bridge == "ccip"
+                    and self._event_type_value(mint_event.event_type)
+                    == "MESSAGE_EXECUTION_STATE_CHANGED"
+                ):
+                    description_suffix += (
+                        " In CCIP, ExecutionStateChanged is not exclusive to "
+                        "completed cross-chain token movements, so this alert is "
+                        "not by itself 100% evidence of an attack."
+                    )
                 probability = self._missing_pair_attack_probability(
                     bridge,
                     event_timestamp,

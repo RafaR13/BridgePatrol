@@ -69,6 +69,12 @@ class Analyser(
     def __init__(self, bridge: str):
         self.bridge = bridge
         self._transaction_context: tuple[dict[str, int], dict[str, int]] | None = None
+        self._analysis_blockchain_transactions_cache: list | None = None
+        self._analysis_blockchain_transactions_by_hash_cache: dict | None = None
+        self._latest_block_numbers_by_blockchain: dict[str, int] | None = None
+        self._latest_block_number: int | None = None
+        self._cross_chain_transactions_cache: list | None = None
+        self._transfers_by_transaction_hash_cache = {}
         self._analysis_start_ts: int | None = None
         self._analysis_end_ts: int | None = None
         self._analysis_has_time_filter = False
@@ -81,7 +87,9 @@ class Analyser(
             print(f"[signature-debug][{self.bridge}] {message}")
 
     @abstractmethod
-    def fetch_blockchain_transactions(self):
+    def fetch_blockchain_transactions(
+        self, start_ts: int | None = None, end_ts: int | None = None
+    ):
         pass
 
     @abstractmethod

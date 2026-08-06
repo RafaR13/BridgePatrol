@@ -24,8 +24,13 @@ class CCTPAnalyser(Analyser):
     def __init__(self):
         super().__init__("cctp")
 
-    def fetch_blockchain_transactions(self):
-        return CCTPBlockchainTransactionRepository.get_all()
+    def fetch_blockchain_transactions(
+        self, start_ts: int | None = None, end_ts: int | None = None
+    ):
+        return CCTPBlockchainTransactionRepository.get_by_time_window(start_ts, end_ts)
+
+    def fetch_latest_transaction_timestamp(self, start_ts: int | None = None):
+        return CCTPBlockchainTransactionRepository.get_latest_timestamp(start_ts)
 
     def analyse_bridge_specific_signatures(self) -> list[DetectionAlert]:
         return self.token_contract_attacks()

@@ -13,11 +13,18 @@ class ChainSwapAnalyser(Analyser):
     def __init__(self):
         super().__init__("chainswap")
 
-    def fetch_blockchain_transactions(self):
-        return ChainSwapBlockchainTransactionRepository.get_all()
+    def fetch_blockchain_transactions(
+        self, start_ts: int | None = None, end_ts: int | None = None
+    ):
+        return ChainSwapBlockchainTransactionRepository.get_by_time_window(start_ts, end_ts)
 
-    def fetch_cross_chain_transactions(self):
-        return ChainSwapCrossChainTransactionRepository.get_all()
+    def fetch_latest_transaction_timestamp(self, start_ts: int | None = None):
+        return ChainSwapBlockchainTransactionRepository.get_latest_timestamp(start_ts)
+
+    def fetch_cross_chain_transactions(
+        self, start_ts: int | None = None, end_ts: int | None = None
+    ):
+        return ChainSwapCrossChainTransactionRepository.get_by_time_window(start_ts, end_ts)
 
     def analyse_bridge_specific_signatures(self) -> list[DetectionAlert]:
         # TODO: add ChainSwap-specific contract/function/trace checks when the

@@ -7,7 +7,9 @@ class StargateAnalyser(Analyser):
     def __init__(self):
         super().__init__("stargate")
 
-    def fetch_blockchain_transactions(self):
+    def fetch_blockchain_transactions(
+        self, start_ts: int | None = None, end_ts: int | None = None
+    ):
         # TODO: implement the Stargate blockchain transaction repository.
         return []
 

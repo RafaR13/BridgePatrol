@@ -10,8 +10,13 @@ class QubitAnalyser(Analyser):
     def __init__(self):
         super().__init__("qubit")
 
-    def fetch_blockchain_transactions(self):
-        return QubitBlockchainTransactionRepository.get_all()
+    def fetch_blockchain_transactions(
+        self, start_ts: int | None = None, end_ts: int | None = None
+    ):
+        return QubitBlockchainTransactionRepository.get_by_time_window(start_ts, end_ts)
+
+    def fetch_latest_transaction_timestamp(self, start_ts: int | None = None):
+        return QubitBlockchainTransactionRepository.get_latest_timestamp(start_ts)
 
     def analyse_bridge_specific_signatures(self) -> list[DetectionAlert]:
         # TODO: implement Qubit-specific signatures.
