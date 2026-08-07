@@ -42,7 +42,9 @@ BASELINE_EXPECTED_POSITIVE_BRIDGES = {
     "meter.io",
     "pnetwork",
     "thorchain",
-    "qubit",
+}
+PARTIAL_EXPECTED_POSITIVE_UNITS_BY_BRIDGE = {
+    "qubit": {f"cctx:qubit:cctx_{index}" for index in range(4, 20)}
 }
 INCOMPLETE_CCTX_SIGNATURE_TYPES = {"LOCK_WITHOUT_MINT", "MINT_WITHOUT_LOCK"}
 
@@ -161,6 +163,11 @@ def build_correctness_summary(
     summary["labels_source"] = None
     summary["metrics_mode"] = "bridge_attack_baseline"
     summary["baseline_expected_positive_bridges"] = sorted(BASELINE_EXPECTED_POSITIVE_BRIDGES)
+    summary["partial_expected_positive_units_by_bridge"] = {
+        bridge: len(units)
+        for bridge, units in sorted(PARTIAL_EXPECTED_POSITIVE_UNITS_BY_BRIDGE.items())
+        if bridge in bridges
+    }
     predicted_positive_units = predicted_positive_units_by_bridge(alerts)
     predicted_incomplete_units = predicted_positive_units_by_bridge(
         alerts,
@@ -204,10 +211,16 @@ def build_correctness_summary(
         expected_positive_bridges=BASELINE_EXPECTED_POSITIVE_BRIDGES,
         complete_cctx_units_by_bridge=complete_cctx_units,
         predicted_positive_complete_counts_by_bridge=predicted_positive_complete_counts,
+        expected_positive_units_by_bridge={
+            bridge: units
+            for bridge, units in PARTIAL_EXPECTED_POSITIVE_UNITS_BY_BRIDGE.items()
+            if bridge in bridges
+        },
     )
     summary["metrics_note"] = (
-        "Bridge-level baseline: chainswap, meter.io, pnetwork, thorchain, and qubit CCTX "
-        "are expected positives; every other bridge CCTX is an expected negative. "
+        "Bridge-level baseline: chainswap, meter.io, pnetwork, and thorchain CCTX "
+        "are expected positives; Qubit expects only cctx_4 through cctx_19 as "
+        "positives; every other bridge CCTX is an expected negative. "
         "Alerts are deduplicated to CCTX-level units when normalized event cctx_id "
         "is available. For benign bridges, predicted positive units outside the complete "
         "CCTX table are counted as extra false positives without reducing true negatives "

@@ -41,3 +41,25 @@ def test_benign_bridge_mixes_complete_cctx_alerts_with_extra_incomplete_alerts()
     assert metrics["false_positives"] == 73
     assert metrics["true_negatives"] == 372
     assert metrics["total"] == 445
+
+
+def test_partial_attack_bridge_keeps_benign_cctx_as_true_negatives():
+    metrics = calculate_bridge_baseline_metrics(
+        predicted_positive_units_by_bridge={
+            "qubit": {f"cctx:qubit:cctx_{index}" for index in range(4, 20)}
+        },
+        cctx_analyzed_by_bridge={"qubit": 19},
+        expected_positive_bridges=set(),
+        complete_cctx_units_by_bridge={
+            "qubit": {f"cctx:qubit:cctx_{index}" for index in range(1, 20)}
+        },
+        expected_positive_units_by_bridge={
+            "qubit": {f"cctx:qubit:cctx_{index}" for index in range(4, 20)}
+        },
+    )
+
+    assert metrics["true_positives"] == 16
+    assert metrics["false_negatives"] == 0
+    assert metrics["false_positives"] == 0
+    assert metrics["true_negatives"] == 3
+    assert metrics["total"] == 19

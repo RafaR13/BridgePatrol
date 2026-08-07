@@ -134,6 +134,7 @@ def calculate_bridge_baseline_metrics(
     expected_positive_bridges: set[str],
     complete_cctx_units_by_bridge: dict[str, set[str]] | None = None,
     predicted_positive_complete_counts_by_bridge: dict[str, int] | None = None,
+    expected_positive_units_by_bridge: dict[str, set[str]] | None = None,
 ) -> dict[str, float | int | None]:
     """Calculate CCTX-level metrics from bridge-level ground truth.
 
@@ -151,7 +152,33 @@ def calculate_bridge_baseline_metrics(
         predicted_units = predicted_positive_units_by_bridge.get(bridge, set())
         predicted_positive = len(predicted_units)
 
-        if bridge in expected_positive_bridges:
+        explicit_expected_units = (
+            expected_positive_units_by_bridge.get(bridge, set())
+            if expected_positive_units_by_bridge is not None
+            else set()
+        )
+        if explicit_expected_units:
+            bridge_tp = len(predicted_units & explicit_expected_units)
+            expected_negative_count = max(total - len(explicit_expected_units), 0)
+            predicted_negative_units = predicted_units - explicit_expected_units
+            true_positives += bridge_tp
+            false_negatives += max(len(explicit_expected_units) - bridge_tp, 0)
+            false_positives += len(predicted_negative_units)
+            if complete_cctx_units_by_bridge is not None:
+                complete_units = complete_cctx_units_by_bridge.get(bridge, set())
+                predicted_on_expected_negative_cctx = len(
+                    predicted_negative_units & complete_units
+                )
+            else:
+                predicted_on_expected_negative_cctx = min(
+                    len(predicted_negative_units),
+                    expected_negative_count,
+                )
+            true_negatives += max(
+                expected_negative_count - predicted_on_expected_negative_cctx,
+                0,
+            )
+        elif bridge in expected_positive_bridges:
             bridge_tp = min(predicted_positive, total)
             true_positives += bridge_tp
             false_negatives += max(total - bridge_tp, 0)
