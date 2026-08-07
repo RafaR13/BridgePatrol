@@ -7,9 +7,6 @@ from db.repository.blockchain_transactions.blockchain_transactions_repository im
 from db.repository.polygon_token_mapping.polygon_token_mapping_repository import (
     PolygonTokenMappingRepository,
 )
-from db.repository.transfer_events.transfer_events_repository import (
-    PolygonTransferRepository,
-)
 from helpers.polygon_root_chain_manager import (
     get_root_chain_manager_contract,
     get_rpc_url,
@@ -386,73 +383,5 @@ class PolygonAnalyser(Analyser):
         return invalid_fields
 
     def token_contract_attacks(self) -> list[DetectionAlert]:
-        """
-        For lock/burn events
-        1)
-            a) se for native token,
-                1) verificar se o "value" da transação é o mesmo do receipt.quantity (event amount provavelmente)
-                2) verificar se o receipt.mainchain.tokenAddr (campo "address" da row deste evento) é o contract oficial da bridge (0x8484Ef722627bf18ca5Ae6BcF031c23E6e922B30)
-                3) verificar se o status é success (?)
-            b) se for token ERC20
-                0) Verificar se houve transfer event nesta transação, senão alert
-                1) verificar se o transfer.to é o address do token ([DepositRequested].receipt.mainchain.tokenAddr, ou seja, campo "address" da row do evento lockedERC20)
-                2) verificar se o transfer.from é o [DepositRequested].receipt.mainchain.addr, ou seja, quem fez o lockedERC20 (column depositor no evento lockederc20)
-                3) verificar se transfer.value é igual ao [DepositRequested].receipt.info.quantity (coluna amount do evento lockedERC20)
-
-                [importante] no caso de haver mais que um transfer event, é possivel que tenha havido chained transfers, por isso temos que seguir o caminho e verificar se tudo bate certo (mais que um transfer pode não significar que houve ataque, pode ter havido A->B->C->lock/burn)
-
-        """
-
-        alerts: list[DetectionAlert] = []
-
-        # 1 - fetch lock/burn events - lockedToken only for now, and corresponding transaction
-        # TODO: add the remaining lock/burn event types after LockedToken checks are covered.
-        locked_events = NormalizedEventRepository.get_events_by_event_type(
-            NormalizedEventType.LOCKED_TOKEN,
-            self.bridge,
-        )
-        txs_by_hash = {
-            tx.transaction_hash: tx
-            for tx in PolygonBlockchainTransactionRepository.get_all()
-            if tx.transaction_hash is not None
-        }
-        transfers_by_tx: dict[str, list] = {}
-        for transfer in PolygonTransferRepository.get_all():
-            transfers_by_tx.setdefault(transfer.transaction_hash, []).append(transfer)
-
-        # 2 - for each event, check if it's native or ERC20 token (root token is 0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2)
-        for event in locked_events:
-            tx = txs_by_hash.get(event.transaction_hash)
-            if str(event.token_in).lower() == self.POLYGON_NATIVE_ROOT_TOKEN:
-                invalid_fields = self._check_locked_token_native(event, tx)
-            else:
-                invalid_fields = self._check_locked_token_erc20(
-                    event,
-                    transfers_by_tx.get(event.transaction_hash, []),
-                )
-
-            if not invalid_fields:
-                continue
-
-            correlation_id = event.correlation_id or event.transaction_hash or str(event.raw_pk)
-            alerts.append(
-                self.create_detection_alert(
-                    signature_type=SignatureType.CONTRACT_MISMATCH,
-                    severity=AlertSeverity.HIGH,
-                    bridge=self.bridge,
-                    correlation_id=correlation_id,
-                    correlation_type="locked_token_contract_attack",
-                    src_event_id=event.id,
-                    dst_event_id=None,
-                    title="polygon: LockedToken failed token contract checks",
-                    description=(
-                        f"Found LockedToken event with correlation_id={correlation_id}. "
-                        f"Invalid token contract fields: {'; '.join(invalid_fields)}."
-                    ),
-                    created_at_ts=event.timestamp,
-                    probability="TODO",
-                )
-            )
-
-        return alerts
+        return super().token_contract_attacks()
     '''

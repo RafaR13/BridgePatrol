@@ -42,22 +42,6 @@ class CCIPBlockchainTransactions(BlockchainTransaction):
     __tablename__ = "ccip_blockchain_transactions"
 
 
-class CCIPTransfer(Base):
-    __tablename__ = "ccip_transfers"
-
-    id = Column(BigInteger, nullable=False, autoincrement=True, primary_key=True)
-    blockchain = Column(String(10), nullable=False)
-    transaction_hash = Column(String(66), nullable=False)
-    block_number = Column(Integer, nullable=False)
-    log_index = Column(Integer, nullable=False)
-    token_address = Column(String(42), nullable=False)
-    from_address = Column(String(42), nullable=False)
-    to_address = Column(String(42), nullable=False)
-    amount = Column(Numeric(78, 0), nullable=False)
-    trigger_event_topic = Column(String(66), nullable=False)
-    trigger_contract_address = Column(String(42), nullable=False)
-
-
 class CCIPCrossChainTransactions(Base):
     __tablename__ = "ccip_cross_chain_transactions"
 

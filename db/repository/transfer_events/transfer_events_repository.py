@@ -1,8 +1,10 @@
 from db.database import get_session
-from db.repository.bridge_tables.ccip import CCIPTransfer
-from db.repository.bridge_tables.cctp import CCTPTransfer
-from db.repository.bridge_tables.polygon import PolygonTransfer
-from db.repository.bridge_tables.ronin import RoninTransfer
+from db.repository.bridge_tables.transfers import (
+    CCIPTransfer,
+    CCTPTransfer,
+    PolygonTransfer,
+    RoninTransfer,
+)
 from types import SimpleNamespace
 
 from sqlalchemy import bindparam, text

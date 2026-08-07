@@ -2,32 +2,13 @@ from __future__ import annotations
 
 from db.repository.detection_alert.detection_alert_model import DetectionAlert
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
-from db.repository.transfer_events.transfer_events_repository import (
-    CCIPTransferRepository,
-    CCTPTransferRepository,
-    GenericTransferRepository,
-    PolygonTransferRepository,
-    RoninTransferRepository,
-)
+from normalization.event_types import NormalizedEventType
 from signature_detection.constants import (
     TOKEN_CONTRACT_ATTACK_CONFIG,
     AlertSeverity,
     SignatureType,
     TokenContractAttackConfig,
 )
-
-TRANSFER_REPOSITORIES = {
-    "across": GenericTransferRepository("across_transfers"),
-    "ccip": CCIPTransferRepository,
-    "cctp": CCTPTransferRepository,
-    "debridge": GenericTransferRepository("debridge_transfers"),
-    "mayan": GenericTransferRepository("mayan_transfers"),
-    "meter.io": GenericTransferRepository("meter_io_transfers"),
-    "omnibridge": GenericTransferRepository("omnibridge_transfers"),
-    "polygon": PolygonTransferRepository,
-    "qubit": GenericTransferRepository("qubit_transfers"),
-    "ronin": RoninTransferRepository,
-}
 
 
 class TokenContractAttacksMixin:
@@ -51,16 +32,11 @@ class TokenContractAttacksMixin:
             f"transactions={len(blockchain_transactions)} indexed_transactions={len(txs_by_hash)}"
         )
 
-        transfers_by_tx: dict[str, list] = {}
-        transfer_repository = TRANSFER_REPOSITORIES.get(self.bridge)
-        if transfer_repository is not None:
-            transfers_by_tx = self._transfers_by_transaction_hash(transfer_repository)
-            self._debug(
-                "token_contract_attacks: "
-                f"txs_with_transfers={len(transfers_by_tx)}"
-            )
-        else:
-            self._debug("token_contract_attacks: no transfer repository configured")
+        transfers_by_tx = self._normalized_transfers_by_transaction_hash()
+        self._debug(
+            "token_contract_attacks: "
+            f"txs_with_normalized_transfers={len(transfers_by_tx)}"
+        )
 
         for config in configs:
             events = self._events_by_event_type(
@@ -199,6 +175,11 @@ class TokenContractAttacksMixin:
         status = event.status if event.status is not None else getattr(tx, "status", None)
         return str(status) if status is not None else None
 
+    def _status_is_success(self, status: str | None) -> bool:
+        if status is None:
+            return True
+        return status.strip().lower() in {"1", "success", "successful", "true"}
+
     def _check_expected_source_contract(
         self,
         event: NormalizedEvent,
@@ -238,7 +219,7 @@ class TokenContractAttacksMixin:
         invalid_fields.extend(self._check_expected_source_contract(event, config, 2))
 
         status = self._status_value(event, tx)
-        if status is not None and status != "1":
+        if not self._status_is_success(status):
             invalid_fields.append(
                 f"3) transaction status is not success (status={status})"
             )
@@ -256,7 +237,7 @@ class TokenContractAttacksMixin:
 
         # check if tx status is sucess
         status = self._status_value(event, tx)
-        if status is not None and status != "1":
+        if not self._status_is_success(status):
             invalid_fields.append(
                 f"4) transaction status is not success (status={status})"
             )
@@ -279,13 +260,13 @@ class TokenContractAttacksMixin:
         matching_transfers = [
             transfer
             for transfer in transfers
-            if self._normalized_value(transfer.token_address)
+            if self._normalized_value(self._transfer_token_address(transfer))
             == self._normalized_value(event.token_in)
-            and self._normalized_value(transfer.to_address)
+            and self._normalized_value(self._transfer_to_address(transfer))
             == self._normalized_value(event.contract_address)
-            and self._normalized_value(transfer.from_address)
+            and self._normalized_value(self._transfer_from_address(transfer))
             == self._normalized_value(event.actor_from)
-            and transfer.amount == event.amount_in
+            and self._transfer_amount(transfer) == event.amount_in
         ]
         if matching_transfers:
             return invalid_fields
@@ -295,22 +276,22 @@ class TokenContractAttacksMixin:
         token_transfers = [
             transfer
             for transfer in transfers
-            if self._normalized_value(transfer.token_address)
+            if self._normalized_value(self._transfer_token_address(transfer))
             == self._normalized_value(event.token_in)
         ]
         token_transfers_from_actor = [
             transfer
             for transfer in token_transfers
-            if self._normalized_value(transfer.from_address)
+            if self._normalized_value(self._transfer_from_address(transfer))
             == self._normalized_value(event.actor_from)
         ]
         has_transfer_to_contract = any(
-            self._normalized_value(transfer.to_address)
+            self._normalized_value(self._transfer_to_address(transfer))
             == self._normalized_value(event.contract_address)
             for transfer in token_transfers_from_actor
         )
         total_transferred_from_actor = sum(
-            transfer.amount for transfer in token_transfers_from_actor
+            self._transfer_amount(transfer) for transfer in token_transfers_from_actor
         )
         if has_transfer_to_contract and total_transferred_from_actor == event.amount_in:
             return invalid_fields
@@ -330,7 +311,10 @@ class TokenContractAttacksMixin:
             )
 
         ## lock/burn amount is transfer's amount
-        if not any(transfer.amount == event.amount_in for transfer in token_transfers):
+        if not any(
+            self._transfer_amount(transfer) == event.amount_in
+            for transfer in token_transfers
+        ):
             transfer_invalid_fields.append(
                 f"3) no token Transfer amount matches the {config.amount_label} "
                 f"(expected_amount={event.amount_in})"
@@ -342,3 +326,32 @@ class TokenContractAttacksMixin:
             )
 
         return invalid_fields + transfer_invalid_fields
+
+    def _normalized_transfers_by_transaction_hash(self) -> dict[str, list[NormalizedEvent]]:
+        transfers_by_tx: dict[str, list[NormalizedEvent]] = {}
+        for transfer in self._events_by_event_type(NormalizedEventType.TRANSFER, self.bridge):
+            if transfer.transaction_hash is None:
+                continue
+            transfers_by_tx.setdefault(transfer.transaction_hash, []).append(transfer)
+        return transfers_by_tx
+
+    def _transfer_token_address(self, transfer):
+        return (
+            getattr(transfer, "token_address", None)
+            or getattr(transfer, "token_in", None)
+            or getattr(transfer, "token_out", None)
+            or getattr(transfer, "contract_address", None)
+        )
+
+    def _transfer_from_address(self, transfer):
+        return getattr(transfer, "from_address", None) or getattr(transfer, "actor_from", None)
+
+    def _transfer_to_address(self, transfer):
+        return getattr(transfer, "to_address", None) or getattr(transfer, "actor_to", None)
+
+    def _transfer_amount(self, transfer):
+        for field in ("amount", "amount_in", "amount_out"):
+            value = getattr(transfer, field, None)
+            if value is not None:
+                return value
+        return None

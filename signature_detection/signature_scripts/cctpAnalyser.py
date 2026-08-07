@@ -1,16 +1,8 @@
 from db.repository.blockchain_transactions.blockchain_transactions_repository import (
     CCTPBlockchainTransactionRepository,
 )
-from db.repository.normalized_event.normalized_event_repository import (
-    NormalizedEventRepository,
-)
-from db.repository.transfer_events.transfer_events_repository import (
-    CCTPTransferRepository,
-)
 from normalization.event_types import NormalizedEventType
 from signature_detection.constants import (
-    AlertSeverity,
-    SignatureType,
     VERIFIED_CONTRACTS,
 )
 
@@ -145,57 +137,3 @@ class CCTPAnalyser(Analyser):
             )
 
         return invalid_fields
-
-    '''
-    def token_contract_attacks(self) -> list[DetectionAlert]:
-        alerts: list[DetectionAlert] = []
-
-        events = NormalizedEventRepository.get_events_by_event_type(
-            NormalizedEventType.DEPOSIT_FOR_BURN,
-            self.bridge,
-        )
-        txs_by_hash = {
-            tx.transaction_hash: tx
-            for tx in CCTPBlockchainTransactionRepository.get_all()
-            if tx.transaction_hash is not None
-        }
-        transfers_by_tx: dict[str, list] = {}
-        for transfer in CCTPTransferRepository.get_all():
-            transfers_by_tx.setdefault(transfer.transaction_hash, []).append(transfer)
-
-        for event in events:
-            if str(event.token_in).lower() == self.CCTP_NATIVE_TOKEN.lower():
-                invalid_fields = self._check_deposit_for_burn_native_token(
-                    event,
-                    txs_by_hash.get(event.transaction_hash),
-                )
-            else:
-                invalid_fields = self._check_deposit_for_burn_erc20_token(
-                    event,
-                    transfers_by_tx.get(event.transaction_hash, []),
-                )
-            if not invalid_fields:
-                continue
-
-            correlation_id = event.correlation_id or event.transaction_hash or str(event.raw_pk)
-            alerts.append(
-                self.create_detection_alert(
-                    signature_type=SignatureType.CONTRACT_MISMATCH,
-                    severity=AlertSeverity.HIGH,
-                    bridge=self.bridge,
-                    correlation_id=correlation_id,
-                    correlation_type="cctp_token_contract_attack",
-                    src_event_id=event.id,
-                    dst_event_id=None,
-                    title="cctp: DepositForBurn failed token contract checks",
-                    description=(
-                        f"Found DepositForBurn event with correlation_id={correlation_id}. "
-                        f"Invalid token contract fields: {'; '.join(invalid_fields)}."
-                    ),
-                    created_at_ts=event.timestamp,
-                    probability="TODO",
-                )
-            )
-
-        return alerts
-    '''
