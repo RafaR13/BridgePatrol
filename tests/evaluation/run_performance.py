@@ -106,13 +106,23 @@ def build_performance_summary(
             for bridge, window in evaluation_windows.items()
             if bridge in bridges
         },
+        windows={
+            bridge: window["windows"]
+            for bridge, window in evaluation_windows.items()
+            if bridge in bridges
+        },
     )
     cctx_analyzed = total_count(cctx_by_bridge)
+    single_bridge_window = evaluation_windows[bridges[0]] if len(bridges) == 1 else None
     summary_start_ts = (
-        evaluation_windows[bridges[0]]["start_ts"] if len(bridges) == 1 else args.start_ts
+        single_bridge_window["start_ts"]
+        if single_bridge_window is not None and len(single_bridge_window["windows"]) == 1
+        else args.start_ts
     )
     summary_end_ts = (
-        evaluation_windows[bridges[0]]["end_ts"] if len(bridges) == 1 else args.end_ts
+        single_bridge_window["end_ts"]
+        if single_bridge_window is not None and len(single_bridge_window["windows"]) == 1
+        else args.end_ts
     )
     summary = {
         "bridge": bridge_scope(bridges),
@@ -303,14 +313,17 @@ def main() -> int:
         bridge_alerts = []
         if args.phase in ("all", "signature-detection"):
             bridge_window = evaluation_windows[bridge]
-            bridge_alerts = run_for_bridges(
-                [bridge],
-                start_ts=bridge_window["start_ts"],
-                end_ts=bridge_window["end_ts"],
-                persist=args.persist_alerts,
-                report_path=result_paths.details_jsonl,
-                run_id=run_id,
-            )
+            for window in bridge_window["windows"]:
+                bridge_alerts.extend(
+                    run_for_bridges(
+                        [bridge],
+                        start_ts=window["start_ts"],
+                        end_ts=window["end_ts"],
+                        persist=args.persist_alerts,
+                        report_path=result_paths.details_jsonl,
+                        run_id=run_id,
+                    )
+                )
         alerts.extend(bridge_alerts)
         records = load_run_records(result_paths.details_jsonl, run_id)
         bridge_summary = build_performance_summary(

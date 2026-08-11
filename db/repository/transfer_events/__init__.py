@@ -1,13 +1,3 @@
-from .transfer_events_repository import (
-    CCIPTransferRepository,
-    CCTPTransferRepository,
-    PolygonTransferRepository,
-    RoninTransferRepository,
-)
+from .transfer_events_repository import TransferRepository
 
-__all__ = [
-    "CCIPTransferRepository",
-    "CCTPTransferRepository",
-    "PolygonTransferRepository",
-    "RoninTransferRepository",
-]
+__all__ = ["TransferRepository"]

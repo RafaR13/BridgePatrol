@@ -1,4 +1,4 @@
-# Blockchain IDS Thesis Implementation
+# BridgePatrol : A signature-based Intrusion Detection System for Blockchain Interoperability Protocols
 
 > This repository contains the implementation developed for a master's thesis.
 >

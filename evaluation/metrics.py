@@ -135,6 +135,7 @@ def calculate_bridge_baseline_metrics(
     complete_cctx_units_by_bridge: dict[str, set[str]] | None = None,
     predicted_positive_complete_counts_by_bridge: dict[str, int] | None = None,
     expected_positive_units_by_bridge: dict[str, set[str]] | None = None,
+    expected_positive_counts_by_bridge: dict[str, int] | None = None,
 ) -> dict[str, float | int | None]:
     """Calculate CCTX-level metrics from bridge-level ground truth.
 
@@ -157,7 +158,24 @@ def calculate_bridge_baseline_metrics(
             if expected_positive_units_by_bridge is not None
             else set()
         )
-        if explicit_expected_units:
+        explicit_expected_count = (
+            expected_positive_counts_by_bridge.get(bridge, 0)
+            if expected_positive_counts_by_bridge is not None
+            else 0
+        )
+        if explicit_expected_count:
+            expected_negative_count = max(total - explicit_expected_count, 0)
+            bridge_tp = min(predicted_positive, explicit_expected_count)
+            bridge_fp = max(predicted_positive - explicit_expected_count, 0)
+            true_positives += bridge_tp
+            false_negatives += max(explicit_expected_count - bridge_tp, 0)
+            false_positives += bridge_fp
+
+            true_negatives += max(
+                expected_negative_count - bridge_fp,
+                0,
+            )
+        elif explicit_expected_units:
             bridge_tp = len(predicted_units & explicit_expected_units)
             expected_negative_count = max(total - len(explicit_expected_units), 0)
             predicted_negative_units = predicted_units - explicit_expected_units

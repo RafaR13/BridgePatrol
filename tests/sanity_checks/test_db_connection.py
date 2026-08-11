@@ -6,7 +6,8 @@ def test_database_connection():
     session = get_session()
 
     try:
-        session.execute(text("SELECT 1"))
+        result = session.execute(text("SELECT 1")).scalar()
+        assert result == 1
     finally:
         session.close()
 

@@ -7,6 +7,8 @@ from signature_detection.constants import SignatureType
 from signature_detection.runners.run_signature_detection import run_for_bridge
 from signature_detection.signature_scripts.chainswapAnalyser import ChainSwapAnalyser
 
+from assertions import assert_valid_alerts
+
 
 def test_chainswap_signatures():
     try:
@@ -15,7 +17,7 @@ def test_chainswap_signatures():
         pytest.skip(f"database unavailable for ChainSwap integration test: {exc}")
 
     print(alerts)
-    assert isinstance(alerts, list)
+    assert_valid_alerts(alerts, "chainswap")
 
 
 def test_chainswap_dst_only_cctx_alerts_as_mint_without_lock(monkeypatch):

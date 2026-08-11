@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from db.repository.detection_alert.detection_alert_model import DetectionAlert
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
+from db.repository.transfer_events.transfer_events_repository import TransferRepository
 from normalization.event_types import NormalizedEventType
 from signature_detection.constants import (
     TOKEN_CONTRACT_ATTACK_CONFIG,
@@ -9,6 +10,25 @@ from signature_detection.constants import (
     SignatureType,
     TokenContractAttackConfig,
 )
+
+
+MANUAL_NORMALIZED_TRANSFER_BRIDGES = {
+    "meter.io",
+    "pnetwork",
+    "qubit",
+    "thorchain",
+    "wormhole",
+}
+TRANSFER_REPOSITORIES = {
+    "across": TransferRepository("across_transfers"),
+    "ccip": TransferRepository("ccip_transfers"),
+    "cctp": TransferRepository("cctp_transfers"),
+    "debridge": TransferRepository("debridge_transfers"),
+    "mayan": TransferRepository("mayan_transfers"),
+    "omnibridge": TransferRepository("omnibridge_transfers"),
+    "polygon": TransferRepository("polygon_transfers"),
+    "ronin": TransferRepository("ronin_transfers"),
+}
 
 
 class TokenContractAttacksMixin:
@@ -32,10 +52,10 @@ class TokenContractAttacksMixin:
             f"transactions={len(blockchain_transactions)} indexed_transactions={len(txs_by_hash)}"
         )
 
-        transfers_by_tx = self._normalized_transfers_by_transaction_hash()
+        transfers_by_tx = self._transfers_for_token_contract_checks_by_transaction_hash()
         self._debug(
             "token_contract_attacks: "
-            f"txs_with_normalized_transfers={len(transfers_by_tx)}"
+            f"txs_with_transfers={len(transfers_by_tx)}"
         )
 
         for config in configs:
@@ -326,6 +346,17 @@ class TokenContractAttacksMixin:
             )
 
         return invalid_fields + transfer_invalid_fields
+
+    def _transfers_for_token_contract_checks_by_transaction_hash(self) -> dict[str, list]:
+        if self.bridge in MANUAL_NORMALIZED_TRANSFER_BRIDGES:
+            return self._normalized_transfers_by_transaction_hash()
+
+        transfer_repository = TRANSFER_REPOSITORIES.get(self.bridge)
+        if transfer_repository is None:
+            self._debug("token_contract_attacks: no transfer repository configured")
+            return {}
+
+        return self._transfers_by_transaction_hash(transfer_repository)
 
     def _normalized_transfers_by_transaction_hash(self) -> dict[str, list[NormalizedEvent]]:
         transfers_by_tx: dict[str, list[NormalizedEvent]] = {}

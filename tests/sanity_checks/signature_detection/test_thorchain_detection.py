@@ -3,11 +3,13 @@ import pytest
 from signature_detection.runners.run_signature_detection import run_for_bridge
 from signature_detection.signature_scripts.thorchainAnalyser import ThorchainAnalyser
 
+from assertions import assert_valid_alerts
+
 
 def test_thorchain_signatures():
     alerts = run_for_bridge("thorchain", persist=False)
     print(alerts)
-    assert isinstance(alerts, list)
+    assert_valid_alerts(alerts, "thorchain")
 
 
 def test_thorchain_analyse_all_only_runs_source_side_checks(monkeypatch):

@@ -6,6 +6,7 @@ from typing import Any
 from signature_detection.constants import Bridges
 
 
+Window = dict[str, int]
 ALL_BRIDGE = "all"
 MANUAL_NORMALIZATION_BRIDGES = {"meter.io", "pnetwork", "qubit", "thorchain", "wormhole"}
 MANUAL_TRANSACTION_ONLY_BRIDGES = {"chainswap"}
@@ -15,20 +16,30 @@ EVALUATION_START_TS = 1735689600  # 2025-01-01 00:00:00 UTC
 EVALUATION_END_TS = 1735776000  # 2025-01-02 00:00:00 UTC
 EVALUATION_WINDOWS_BY_BRIDGE = {
     "across": (1764547199, 1764550799),  # 2025-11-30 23:59:59..2025-12-01 00:59:59 UTC
-    "ccip": (1735689661, 1735732766),  # 2025-01-01 00:01:01..11:59:26 UTC
-    "cctp": (1735689610, 1735775926),  # 2025-01-01 00:00:10..23:58:46 UTC
-    "debridge": (1733011215, 1733014799),  # 2024-12-01 00:00:15..00:59:59 UTC
+    "ccip": (1735689647, 1736035179),  # 2025-01-01 00:00:47..2025-01-04 23:59:39 UTC
+    "cctp": (1735689599, 1735775999),  # 2024-12-31 23:59:59..2025-01-01 23:59:59 UTC
+    "debridge": (1733011214, 1733270399),  # 2024-12-01 00:00:14..2024-12-03 23:59:59 UTC
     "mayan": (1741219199, 1741262399),  # 2025-03-05 23:59:59..2025-03-06 11:59:59 UTC
-    "nomad": (1641902381, 1670014235),  # 2022-01-11 11:59:41..2022-12-02 20:50:35 UTC
+    "nomad": (1654041916, 1659558228),  # Aggregate bounds for reporting only.
     "omnibridge": (1735689655, 1735775770),  # 2025-01-01 00:00:55..23:56:10 UTC
-    "polygon": (1735689657, 1735775723),  # 2025-01-01 00:00:57..23:55:23 UTC
-    "ronin": (1735690655, 1735774835),  # 2025-01-01 00:17:35..23:40:35 UTC
+    "polygon": (1735689657, 1736207680),  # 2025-01-01 00:00:57..2025-01-06 23:54:40 UTC
+    "ronin": (1647820871, 1736465783),  # Aggregate bounds for reporting only.
     "chainswap": (1625944571, 1625946641),  # 2021-07-10 19:16:11..19:50:41 UTC
     "pnetwork": (1632072029, 1632073328),  # 2021-09-19 17:20:29..17:42:08 UTC
     "meter.io": (1644066697, 1644072468),  # 2022-02-05 13:11:37..14:47:48 UTC
     "qubit": (1639984426, 1643321192),  # 2021-12-20 07:13:46..2022-01-27 22:06:32 UTC
     "wormhole": (1643824684, 1643824724),  # 2022-02-02 17:58:04..17:58:44 UTC
     "thorchain": (1624899151, 1626377786),  # 2021-06-28 16:52:31..2021-07-15 19:36:26 UTC
+}
+EVALUATION_WINDOW_SETS_BY_BRIDGE = {
+    "nomad": [
+        {"start_ts": 1654041916, "end_ts": 1654128000},  # 2022-06-01 00:05:16..2022-06-02 00:00:00 UTC
+        {"start_ts": 1659312000, "end_ts": 1659558228},  # 2022-08-01 00:00:00..2022-08-03 20:23:48 UTC
+    ],
+    "ronin": [
+        {"start_ts": 1647820871, "end_ts": 1648166400},  # 2022-03-21 00:01:11..2022-03-25 00:00:00 UTC
+        {"start_ts": 1735689655, "end_ts": 1736465783},  # 2025-01-01 00:00:55..2025-01-09 23:36:23 UTC
+    ],
 }
 
 
@@ -80,27 +91,89 @@ def evaluation_window_for_bridge(
     )
 
 
+def evaluation_window_set_for_bridge(
+    bridge: str,
+    start_ts: int | None = None,
+    end_ts: int | None = None,
+) -> list[Window]:
+    if start_ts is not None or end_ts is not None:
+        window_start_ts, window_end_ts = evaluation_window_for_bridge(
+            bridge, start_ts=start_ts, end_ts=end_ts
+        )
+        return [{"start_ts": window_start_ts, "end_ts": window_end_ts}]
+
+    if bridge in EVALUATION_WINDOW_SETS_BY_BRIDGE:
+        return [dict(window) for window in EVALUATION_WINDOW_SETS_BY_BRIDGE[bridge]]
+
+    window_start_ts, window_end_ts = evaluation_window_for_bridge(bridge)
+    return [{"start_ts": window_start_ts, "end_ts": window_end_ts}]
+
+
 def evaluation_windows_for_bridges(
     bridges: list[str],
     start_ts: int | None = None,
     end_ts: int | None = None,
-) -> dict[str, dict[str, int]]:
+) -> dict[str, dict[str, Any]]:
     return {
         bridge: {
-            "start_ts": bridge_start_ts,
-            "end_ts": bridge_end_ts,
+            "start_ts": windows[0]["start_ts"] if len(windows) == 1 else min(
+                window["start_ts"] for window in windows
+            ),
+            "end_ts": windows[0]["end_ts"] if len(windows) == 1 else max(
+                window["end_ts"] for window in windows
+            ),
+            "windows": windows,
         }
         for bridge in bridges
-        for bridge_start_ts, bridge_end_ts in [
-            evaluation_window_for_bridge(bridge, start_ts=start_ts, end_ts=end_ts)
-        ]
+        for windows in [evaluation_window_set_for_bridge(bridge, start_ts=start_ts, end_ts=end_ts)]
     }
+
+
+def _timestamp_filters(model, start_ts: int | None = None, end_ts: int | None = None):
+    filters = []
+    for field in ("src_timestamp", "dst_timestamp", "refund_timestamp"):
+        if not hasattr(model, field):
+            continue
+        column = getattr(model, field)
+        field_filters = []
+        if start_ts is not None:
+            field_filters.append(column >= start_ts)
+        if end_ts is not None:
+            field_filters.append(column <= end_ts)
+        if field_filters:
+            query_for_field = field_filters[0]
+            for extra_filter in field_filters[1:]:
+                query_for_field = query_for_field & extra_filter
+            filters.append(query_for_field)
+    return filters
+
+
+def _timestamp_filters_for_windows(
+    model,
+    windows: list[Window] | None = None,
+    start_ts: int | None = None,
+    end_ts: int | None = None,
+):
+    if windows:
+        filters = []
+        for window in windows:
+            filters.extend(
+                _timestamp_filters(
+                    model,
+                    start_ts=window.get("start_ts"),
+                    end_ts=window.get("end_ts"),
+                )
+            )
+        return filters
+
+    return _timestamp_filters(model, start_ts=start_ts, end_ts=end_ts)
 
 
 def count_cctx(
     bridge: str,
     start_ts: int | None = None,
     end_ts: int | None = None,
+    windows: list[Window] | None = None,
 ) -> int | None:
     from sqlalchemy import or_
 
@@ -114,24 +187,11 @@ def count_cctx(
     session = get_session()
     try:
         query = session.query(model)
-        if start_ts is not None or end_ts is not None:
-            filters = []
-            for field in ("src_timestamp", "dst_timestamp", "refund_timestamp"):
-                if not hasattr(model, field):
-                    continue
-                column = getattr(model, field)
-                field_filters = []
-                if start_ts is not None:
-                    field_filters.append(column >= start_ts)
-                if end_ts is not None:
-                    field_filters.append(column <= end_ts)
-                if field_filters:
-                    query_for_field = field_filters[0]
-                    for extra_filter in field_filters[1:]:
-                        query_for_field = query_for_field & extra_filter
-                    filters.append(query_for_field)
-            if filters:
-                query = query.filter(or_(*filters))
+        filters = _timestamp_filters_for_windows(
+            model, windows=windows, start_ts=start_ts, end_ts=end_ts
+        )
+        if filters:
+            query = query.filter(or_(*filters))
         return query.count()
     finally:
         session.close()
@@ -141,12 +201,14 @@ def count_cctx_for_bridges(
     bridges: list[str],
     start_ts: int | dict[str, int] | None = None,
     end_ts: int | dict[str, int] | None = None,
+    windows: dict[str, list[Window]] | None = None,
 ) -> dict[str, int | None]:
     return {
         bridge: count_cctx(
             bridge,
             start_ts=start_ts.get(bridge) if isinstance(start_ts, dict) else start_ts,
             end_ts=end_ts.get(bridge) if isinstance(end_ts, dict) else end_ts,
+            windows=windows.get(bridge) if windows is not None else None,
         )
         for bridge in bridges
     }
@@ -156,12 +218,14 @@ def complete_cctx_units_by_bridge(
     bridges: list[str],
     start_ts: int | dict[str, int] | None = None,
     end_ts: int | dict[str, int] | None = None,
+    windows: dict[str, list[Window]] | None = None,
 ) -> dict[str, set[str]]:
     return {
         bridge: complete_cctx_units(
             bridge,
             start_ts=start_ts.get(bridge) if isinstance(start_ts, dict) else start_ts,
             end_ts=end_ts.get(bridge) if isinstance(end_ts, dict) else end_ts,
+            windows=windows.get(bridge) if windows is not None else None,
         )
         for bridge in bridges
     }
@@ -171,6 +235,7 @@ def complete_cctx_units(
     bridge: str,
     start_ts: int | None = None,
     end_ts: int | None = None,
+    windows: list[Window] | None = None,
 ) -> set[str]:
     from sqlalchemy import or_
 
@@ -191,24 +256,11 @@ def complete_cctx_units(
     session = get_session()
     try:
         query = session.query(*selected_columns)
-        if start_ts is not None or end_ts is not None:
-            filters = []
-            for field in ("src_timestamp", "dst_timestamp", "refund_timestamp"):
-                if not hasattr(model, field):
-                    continue
-                column = getattr(model, field)
-                field_filters = []
-                if start_ts is not None:
-                    field_filters.append(column >= start_ts)
-                if end_ts is not None:
-                    field_filters.append(column <= end_ts)
-                if field_filters:
-                    query_for_field = field_filters[0]
-                    for extra_filter in field_filters[1:]:
-                        query_for_field = query_for_field & extra_filter
-                    filters.append(query_for_field)
-            if filters:
-                query = query.filter(or_(*filters))
+        filters = _timestamp_filters_for_windows(
+            model, windows=windows, start_ts=start_ts, end_ts=end_ts
+        )
+        if filters:
+            query = query.filter(or_(*filters))
 
         units = set()
         for row in query.all():

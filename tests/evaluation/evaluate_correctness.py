@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# ruff: noqa: E402
+
 import argparse
 import sys
 from pathlib import Path
@@ -45,6 +47,14 @@ BASELINE_EXPECTED_POSITIVE_BRIDGES = {
 }
 PARTIAL_EXPECTED_POSITIVE_UNITS_BY_BRIDGE = {
     "qubit": {f"cctx:qubit:cctx_{index}" for index in range(4, 20)}
+}
+PARTIAL_EXPECTED_POSITIVE_COUNTS_BY_BRIDGE = {
+    "nomad": 382,
+    "ronin": 2,
+}
+PARTIAL_EXPECTED_POSITIVE_WINDOWS_BY_BRIDGE = {
+    "nomad": {"start_ts": 1659312000, "end_ts": 1659558228},
+    "ronin": {"start_ts": 1647820871, "end_ts": 1648166400},
 }
 INCOMPLETE_CCTX_SIGNATURE_TYPES = {"LOCK_WITHOUT_MINT", "MINT_WITHOUT_LOCK"}
 
@@ -105,6 +115,25 @@ def filter_records_for_bridge(records: list[dict], bridge: str) -> list[dict]:
     ]
 
 
+def windows_overlap(left: dict[str, int], right: dict[str, int]) -> bool:
+    return left["start_ts"] <= right["end_ts"] and right["start_ts"] <= left["end_ts"]
+
+
+def expected_positive_counts_for_bridges(
+    bridges: list[str],
+    evaluation_windows: dict[str, dict],
+) -> dict[str, int]:
+    return {
+        bridge: PARTIAL_EXPECTED_POSITIVE_COUNTS_BY_BRIDGE[bridge]
+        for bridge in bridges
+        if bridge in PARTIAL_EXPECTED_POSITIVE_COUNTS_BY_BRIDGE
+        and any(
+            windows_overlap(window, PARTIAL_EXPECTED_POSITIVE_WINDOWS_BY_BRIDGE[bridge])
+            for window in evaluation_windows[bridge]["windows"]
+        )
+    }
+
+
 def build_correctness_summary(
     args: argparse.Namespace,
     bridges: list[str],
@@ -123,13 +152,23 @@ def build_correctness_summary(
             for bridge, window in evaluation_windows.items()
             if bridge in bridges
         },
+        windows={
+            bridge: window["windows"]
+            for bridge, window in evaluation_windows.items()
+            if bridge in bridges
+        },
     )
     cctx_analyzed = total_count(cctx_by_bridge)
+    single_bridge_window = evaluation_windows[bridges[0]] if len(bridges) == 1 else None
     summary_start_ts = (
-        evaluation_windows[bridges[0]]["start_ts"] if len(bridges) == 1 else args.start_ts
+        single_bridge_window["start_ts"]
+        if single_bridge_window is not None and len(single_bridge_window["windows"]) == 1
+        else args.start_ts
     )
     summary_end_ts = (
-        evaluation_windows[bridges[0]]["end_ts"] if len(bridges) == 1 else args.end_ts
+        single_bridge_window["end_ts"]
+        if single_bridge_window is not None and len(single_bridge_window["windows"]) == 1
+        else args.end_ts
     )
     summary = {
         "bridge": bridge_scope(bridges),
@@ -168,6 +207,11 @@ def build_correctness_summary(
         for bridge, units in sorted(PARTIAL_EXPECTED_POSITIVE_UNITS_BY_BRIDGE.items())
         if bridge in bridges
     }
+    expected_positive_counts = expected_positive_counts_for_bridges(
+        bridges,
+        evaluation_windows,
+    )
+    summary["partial_expected_positive_counts_by_bridge"] = expected_positive_counts
     predicted_positive_units = predicted_positive_units_by_bridge(alerts)
     predicted_incomplete_units = predicted_positive_units_by_bridge(
         alerts,
@@ -182,6 +226,11 @@ def build_correctness_summary(
         },
         end_ts={
             bridge: window["end_ts"]
+            for bridge, window in evaluation_windows.items()
+            if bridge in bridges
+        },
+        windows={
+            bridge: window["windows"]
             for bridge, window in evaluation_windows.items()
             if bridge in bridges
         },
@@ -216,11 +265,13 @@ def build_correctness_summary(
             for bridge, units in PARTIAL_EXPECTED_POSITIVE_UNITS_BY_BRIDGE.items()
             if bridge in bridges
         },
+        expected_positive_counts_by_bridge=expected_positive_counts,
     )
     summary["metrics_note"] = (
         "Bridge-level baseline: chainswap, meter.io, pnetwork, and thorchain CCTX "
         "are expected positives; Qubit expects only cctx_4 through cctx_19 as "
-        "positives; every other bridge CCTX is an expected negative. "
+        "positives; Ronin 2022 expects 2 attack units; Nomad 2022-08 expects "
+        "382 attack units; every other analyzed unit is an expected negative. "
         "Alerts are deduplicated to CCTX-level units when normalized event cctx_id "
         "is available. For benign bridges, predicted positive units outside the complete "
         "CCTX table are counted as extra false positives without reducing true negatives "
@@ -285,14 +336,18 @@ def main() -> int:
     bridge_summaries = {}
     for bridge in bridges:
         bridge_window = evaluation_windows[bridge]
-        bridge_alerts = run_for_bridges(
-            [bridge],
-            start_ts=bridge_window["start_ts"],
-            end_ts=bridge_window["end_ts"],
-            persist=args.persist_alerts,
-            report_path=result_paths.details_jsonl,
-            run_id=run_id,
-        )
+        bridge_alerts = []
+        for window in bridge_window["windows"]:
+            bridge_alerts.extend(
+                run_for_bridges(
+                    [bridge],
+                    start_ts=window["start_ts"],
+                    end_ts=window["end_ts"],
+                    persist=args.persist_alerts,
+                    report_path=result_paths.details_jsonl,
+                    run_id=run_id,
+                )
+            )
         alerts.extend(bridge_alerts)
         bridge_summary = build_correctness_summary(
             args,

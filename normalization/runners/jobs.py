@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from functools import partial
 from typing import Callable
 
 from db.repository.bridge_tables.across import (
@@ -54,17 +53,6 @@ from db.repository.bridge_tables.ronin import (
     RoninTokenWithdrew,
     RoninWithdrawalRequested,
 )
-from db.repository.bridge_tables.transfers import (
-    AcrossTransfer,
-    CCIPTransfer,
-    CCTPTransfer,
-    DeBridgeTransfer,
-    MayanTransfer,
-    MeterIoTransfer,
-    OmnibridgeTransfer,
-    PolygonTransfer,
-    RoninTransfer,
-)
 from normalization.mappers.across.mapper import (
     map_filled_relay,
     map_funds_deposited,
@@ -117,7 +105,6 @@ from normalization.mappers.ronin.mapper import (
     map_token_withdrew,
     map_withdrawal_requested,
 )
-from normalization.mappers.transfers.mapper import map_transfer
 
 
 @dataclass(frozen=True)
@@ -141,12 +128,6 @@ def _id_or_fallback(*fallback_fields: str) -> Callable:
 BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
     "across": (
         NormalizationJob(
-            AcrossTransfer,
-            "across_transfers",
-            lambda row: str(row.id),
-            partial(map_transfer, bridge="across", raw_table="across_transfers"),
-        ),
-        NormalizationJob(
             AcrossFundsDeposited,
             "across_funds_deposited",
             lambda row: str(row.deposit_id),
@@ -167,12 +148,6 @@ BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
     ),
     "ccip": (
         NormalizationJob(
-            CCIPTransfer,
-            "ccip_transfers",
-            lambda row: str(row.id),
-            partial(map_transfer, bridge="ccip", raw_table="ccip_transfers"),
-        ),
-        NormalizationJob(
             CCIPSendRequested,
             "ccip_send_requested",
             lambda row: str(row.id),
@@ -187,12 +162,6 @@ BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
     ),
     "cctp": (
         NormalizationJob(
-            CCTPTransfer,
-            "cctp_transfers",
-            lambda row: str(row.id),
-            partial(map_transfer, bridge="cctp", raw_table="cctp_transfers"),
-        ),
-        NormalizationJob(
             CCTPDepositForBurn,
             "cctp_deposit_for_burn",
             lambda row: str(row.id) if getattr(row, "id", None) is not None else row.transaction_hash,
@@ -206,12 +175,6 @@ BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
         ),
     ),
     "debridge": (
-        NormalizationJob(
-            DeBridgeTransfer,
-            "debridge_transfers",
-            lambda row: str(row.id),
-            partial(map_transfer, bridge="debridge", raw_table="debridge_transfers"),
-        ),
         NormalizationJob(
             DeBridgeCreatedOrder,
             "debridge_created_order",
@@ -231,22 +194,8 @@ BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
             map_debridge_claimed_unlock,
         ),
     ),
-    "mayan": (
-        NormalizationJob(
-            MayanTransfer,
-            "mayan_transfers",
-            lambda row: str(row.id),
-            partial(map_transfer, bridge="mayan", raw_table="mayan_transfers"),
-        ),
-    ),
-    "meter.io": (
-        NormalizationJob(
-            MeterIoTransfer,
-            "meter_io_transfers",
-            lambda row: str(row.id),
-            partial(map_transfer, bridge="meter.io", raw_table="meter_io_transfers"),
-        ),
-    ),
+    "mayan": (),
+    "meter.io": (),
     "nomad": (
         NormalizationJob(
             NomadRouterSend,
@@ -280,12 +229,6 @@ BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
         ),
     ),
     "omnibridge": (
-        NormalizationJob(
-            OmnibridgeTransfer,
-            "omnibridge_transfers",
-            lambda row: str(row.id),
-            partial(map_transfer, bridge="omnibridge", raw_table="omnibridge_transfers"),
-        ),
         NormalizationJob(
             OmnibridgeTokensBridgingInitiated,
             "omnibridge_tokens_bridging_initiated",
@@ -336,12 +279,6 @@ BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
         ),
     ),
     "polygon": (
-        NormalizationJob(
-            PolygonTransfer,
-            "polygon_transfers",
-            lambda row: str(row.id),
-            partial(map_transfer, bridge="polygon", raw_table="polygon_transfers"),
-        ),
         NormalizationJob(
             PolygonStateSynced,
             "polygon_state_synced",
@@ -404,12 +341,6 @@ BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
         ),
     ),
     "ronin": (
-        NormalizationJob(
-            RoninTransfer,
-            "ronin_transfers",
-            lambda row: str(row.id),
-            partial(map_transfer, bridge="ronin", raw_table="ronin_transfers"),
-        ),
         NormalizationJob(
             RoninDepositRequested,
             "ronin_deposit_requested",
