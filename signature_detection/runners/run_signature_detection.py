@@ -39,7 +39,6 @@ ANALYSER_BY_BRIDGE = {
     Bridges.QUBIT.value: QubitAnalyser,
     Bridges.CHAINSWAP.value: ChainSwapAnalyser,
 }
-EXTRA_KNOWN_BRIDGES = {"wormhole"}
 
 
 def run_for_bridge(
@@ -53,7 +52,7 @@ def run_for_bridge(
     # ensure tables exist
     Base.metadata.create_all(bind=engine)
     bridge_name = bridge.value if isinstance(bridge, Bridges) else bridge
-    known_bridges = {supported_bridge.value for supported_bridge in Bridges} | EXTRA_KNOWN_BRIDGES
+    known_bridges = {supported_bridge.value for supported_bridge in Bridges}
     if bridge_name not in known_bridges:
         raise ValueError(f"Bridge {bridge} is not recognized")
 

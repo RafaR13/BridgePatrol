@@ -21,38 +21,37 @@ from evaluation.markdown_report import (
 )
 from evaluation.metrics import (
     build_confusion_matrix,
-    calculate_bridge_baseline_metrics,
     calculate_metrics,
+    calculate_signature_expected_metrics,
     load_expected_labels,
 )
 from evaluation.result_paths import build_evaluation_result_paths
 from evaluation.reporting import EvaluationReporter, write_json_summary
 from tests.evaluation.evaluation_utils import (
     bridge_scope,
-    complete_cctx_units_by_bridge,
+    count_cctx,
     count_cctx_for_bridges,
     evaluation_windows_for_bridges,
     resolve_bridge_selection,
     predicted_positive_units_by_bridge,
+    predicted_positive_units_by_bridge_and_signature,
     summarize_alerts,
     total_count,
 )
 
-
-BASELINE_EXPECTED_POSITIVE_BRIDGES = {
-    "chainswap",
-    "meter.io",
-    "pnetwork",
-    "thorchain",
+EXPECTED_POSITIVE_SIGNATURE_COUNTS_BY_BRIDGE = {
+    "chainswap": {"MINT_WITHOUT_LOCK": 530},
+    "meter.io": {"AMOUNT_MISMATCH": 4},
+    "nomad": {"MINT_WITHOUT_LOCK": 382},
+    "pnetwork": {"CONTRACT_MISMATCH": 3},
+    "qubit": {"CONTRACT_MISMATCH": 16},
+    "ronin": {"MINT_WITHOUT_LOCK": 2},
+    "thorchain": {
+        "CONTRACT_MISMATCH": 9,
+        "AMOUNT_MISMATCH": 41,
+    },
 }
-PARTIAL_EXPECTED_POSITIVE_UNITS_BY_BRIDGE = {
-    "qubit": {f"cctx:qubit:cctx_{index}" for index in range(4, 20)}
-}
-PARTIAL_EXPECTED_POSITIVE_COUNTS_BY_BRIDGE = {
-    "nomad": 382,
-    "ronin": 2,
-}
-PARTIAL_EXPECTED_POSITIVE_WINDOWS_BY_BRIDGE = {
+EXPECTED_POSITIVE_WINDOWS_BY_BRIDGE = {
     "nomad": {"start_ts": 1659312000, "end_ts": 1659558228},
     "ronin": {"start_ts": 1647820871, "end_ts": 1648166400},
 }
@@ -110,8 +109,7 @@ def filter_records_for_bridge(records: list[dict], bridge: str) -> list[dict]:
     return [
         record
         for record in records
-        if record.get("bridge") == bridge
-        or bridge in (record.get("bridges") or [])
+        if record.get("bridge") == bridge or bridge in (record.get("bridges") or [])
     ]
 
 
@@ -119,19 +117,99 @@ def windows_overlap(left: dict[str, int], right: dict[str, int]) -> bool:
     return left["start_ts"] <= right["end_ts"] and right["start_ts"] <= left["end_ts"]
 
 
-def expected_positive_counts_for_bridges(
+def expected_positive_signature_counts_for_bridges(
     bridges: list[str],
     evaluation_windows: dict[str, dict],
-) -> dict[str, int]:
-    return {
-        bridge: PARTIAL_EXPECTED_POSITIVE_COUNTS_BY_BRIDGE[bridge]
+) -> dict[str, dict[str, int]]:
+    expected_counts = {}
+    for bridge in bridges:
+        bridge_expected_counts = EXPECTED_POSITIVE_SIGNATURE_COUNTS_BY_BRIDGE.get(bridge)
+        if not bridge_expected_counts:
+            continue
+
+        expected_window = EXPECTED_POSITIVE_WINDOWS_BY_BRIDGE.get(bridge)
+        if expected_window is not None:
+            if not any(
+                windows_overlap(window, expected_window)
+                for window in evaluation_windows[bridge]["windows"]
+            ):
+                continue
+
+            expected_window_cctx_count = count_cctx(
+                bridge,
+                windows=[expected_window],
+            )
+            if not expected_window_cctx_count:
+                continue
+
+        expected_counts[bridge] = dict(bridge_expected_counts)
+
+    return expected_counts
+
+
+def alert_in_window(alert, window: dict[str, int]) -> bool:
+    created_at_ts = getattr(alert, "created_at_ts", None)
+    return (
+        created_at_ts is not None and window["start_ts"] <= int(created_at_ts) <= window["end_ts"]
+    )
+
+
+def predicted_positive_expected_window_counts_by_signature_for_bridges(
+    alerts: list,
+    bridges: list[str],
+) -> dict[str, dict[str, int]]:
+    counts = {}
+    for bridge in bridges:
+        window = EXPECTED_POSITIVE_WINDOWS_BY_BRIDGE.get(bridge)
+        if window is None:
+            continue
+        bridge_window_alerts = [
+            alert
+            for alert in alerts
+            if str(getattr(alert, "bridge", "")) == bridge and alert_in_window(alert, window)
+        ]
+        counts[bridge] = {
+            signature_type: len(units)
+            for signature_type, units in (
+                predicted_positive_units_by_bridge_and_signature(bridge_window_alerts)
+                .get(bridge, {})
+                .items()
+            )
+        }
+    return counts
+
+
+def cctx_total_fields(
+    bridges: list[str],
+    cctx_by_bridge: dict[str, int | None],
+    alerts: list,
+) -> dict:
+    incomplete_units = predicted_positive_units_by_bridge(
+        alerts,
+        signature_types=INCOMPLETE_CCTX_SIGNATURE_TYPES,
+    )
+    incomplete_by_bridge = {bridge: len(incomplete_units.get(bridge, set())) for bridge in bridges}
+    total_by_bridge = {
+        bridge: (cctx_by_bridge.get(bridge) or 0) + incomplete_by_bridge[bridge]
         for bridge in bridges
-        if bridge in PARTIAL_EXPECTED_POSITIVE_COUNTS_BY_BRIDGE
-        and any(
-            windows_overlap(window, PARTIAL_EXPECTED_POSITIVE_WINDOWS_BY_BRIDGE[bridge])
-            for window in evaluation_windows[bridge]["windows"]
-        )
     }
+    return {
+        "incomplete_cctx_by_bridge": incomplete_by_bridge,
+        "incomplete_cctx": total_count(incomplete_by_bridge),
+        "total_cctx_including_incomplete_by_bridge": total_by_bridge,
+        "total_cctx_including_incomplete": total_count(total_by_bridge),
+    }
+
+
+def print_bridge_cctx_totals(bridge: str, summary: dict) -> None:
+    cctx_analyzed = (summary.get("cctx_analyzed_by_bridge") or {}).get(bridge)
+    incomplete_cctx = (summary.get("incomplete_cctx_by_bridge") or {}).get(bridge, 0)
+    total_cctx = (summary.get("total_cctx_including_incomplete_by_bridge") or {}).get(bridge)
+    print(
+        f"[{bridge}] cctx_total={total_cctx} "
+        f"cctx_analyzed={cctx_analyzed} "
+        f"incomplete_cctx={incomplete_cctx}"
+    )
 
 
 def build_correctness_summary(
@@ -175,12 +253,11 @@ def build_correctness_summary(
         "bridges": bridges,
         "start_ts": summary_start_ts,
         "end_ts": summary_end_ts,
-        "evaluation_windows_by_bridge": {
-            bridge: evaluation_windows[bridge] for bridge in bridges
-        },
+        "evaluation_windows_by_bridge": {bridge: evaluation_windows[bridge] for bridge in bridges},
         "cctx_analyzed": cctx_analyzed,
         "cctx_analyzed_by_bridge": cctx_by_bridge,
         **summarize_alerts(alerts),
+        **cctx_total_fields(bridges, cctx_by_bridge, alerts),
     }
 
     if args.labels:
@@ -200,44 +277,35 @@ def build_correctness_summary(
 
     summary["label_count"] = 0
     summary["labels_source"] = None
-    summary["metrics_mode"] = "bridge_attack_baseline"
-    summary["baseline_expected_positive_bridges"] = sorted(BASELINE_EXPECTED_POSITIVE_BRIDGES)
-    summary["partial_expected_positive_units_by_bridge"] = {
-        bridge: len(units)
-        for bridge, units in sorted(PARTIAL_EXPECTED_POSITIVE_UNITS_BY_BRIDGE.items())
-        if bridge in bridges
-    }
-    expected_positive_counts = expected_positive_counts_for_bridges(
+    summary["metrics_mode"] = "signature_expected_counts"
+    expected_positive_counts = expected_positive_signature_counts_for_bridges(
         bridges,
         evaluation_windows,
     )
-    summary["partial_expected_positive_counts_by_bridge"] = expected_positive_counts
+    summary["expected_positive_signature_counts_by_bridge"] = expected_positive_counts
+    predicted_positive_expected_window_counts_by_signature = (
+        predicted_positive_expected_window_counts_by_signature_for_bridges(alerts, bridges)
+    )
+    summary["predicted_positive_expected_window_units_by_bridge_signature"] = {
+        bridge: predicted_positive_expected_window_counts_by_signature.get(bridge, {})
+        for bridge in bridges
+        if bridge in expected_positive_counts
+    }
     predicted_positive_units = predicted_positive_units_by_bridge(alerts)
+    predicted_positive_units_by_signature = predicted_positive_units_by_bridge_and_signature(alerts)
     predicted_incomplete_units = predicted_positive_units_by_bridge(
         alerts,
         signature_types=INCOMPLETE_CCTX_SIGNATURE_TYPES,
     )
-    complete_cctx_units = complete_cctx_units_by_bridge(
-        bridges,
-        start_ts={
-            bridge: window["start_ts"]
-            for bridge, window in evaluation_windows.items()
-            if bridge in bridges
-        },
-        end_ts={
-            bridge: window["end_ts"]
-            for bridge, window in evaluation_windows.items()
-            if bridge in bridges
-        },
-        windows={
-            bridge: window["windows"]
-            for bridge, window in evaluation_windows.items()
-            if bridge in bridges
-        },
-    )
     summary["predicted_positive_units_by_bridge"] = {
-        bridge: len(units)
-        for bridge, units in sorted(predicted_positive_units.items())
+        bridge: len(units) for bridge, units in sorted(predicted_positive_units.items())
+    }
+    summary["predicted_positive_units_by_bridge_signature"] = {
+        bridge: {
+            signature_type: len(units)
+            for signature_type, units in sorted(units_by_signature.items())
+        }
+        for bridge, units_by_signature in sorted(predicted_positive_units_by_signature.items())
     }
     predicted_positive_complete_counts = {
         bridge: len(
@@ -247,35 +315,31 @@ def build_correctness_summary(
         for bridge in bridges
     }
     summary["predicted_positive_complete_cctx_units_by_bridge"] = {
-        bridge: predicted_positive_complete_counts.get(bridge, 0)
-        for bridge in bridges
+        bridge: predicted_positive_complete_counts.get(bridge, 0) for bridge in bridges
     }
     summary["predicted_positive_extra_units_by_bridge"] = {
-        bridge: len(predicted_incomplete_units.get(bridge, set()))
-        for bridge in bridges
+        bridge: len(predicted_incomplete_units.get(bridge, set())) for bridge in bridges
     }
-    summary["metrics"] = calculate_bridge_baseline_metrics(
-        predicted_positive_units_by_bridge=predicted_positive_units,
+    summary["metrics"] = calculate_signature_expected_metrics(
+        predicted_positive_units_by_bridge_signature=predicted_positive_units_by_signature,
         cctx_analyzed_by_bridge=cctx_by_bridge,
-        expected_positive_bridges=BASELINE_EXPECTED_POSITIVE_BRIDGES,
-        complete_cctx_units_by_bridge=complete_cctx_units,
+        expected_positive_signature_counts_by_bridge=expected_positive_counts,
         predicted_positive_complete_counts_by_bridge=predicted_positive_complete_counts,
-        expected_positive_units_by_bridge={
-            bridge: units
-            for bridge, units in PARTIAL_EXPECTED_POSITIVE_UNITS_BY_BRIDGE.items()
-            if bridge in bridges
-        },
-        expected_positive_counts_by_bridge=expected_positive_counts,
+        predicted_positive_expected_window_counts_by_bridge_signature=(
+            predicted_positive_expected_window_counts_by_signature
+        ),
     )
     summary["metrics_note"] = (
-        "Bridge-level baseline: chainswap, meter.io, pnetwork, and thorchain CCTX "
-        "are expected positives; Qubit expects only cctx_4 through cctx_19 as "
-        "positives; Ronin 2022 expects 2 attack units; Nomad 2022-08 expects "
-        "382 attack units; every other analyzed unit is an expected negative. "
-        "Alerts are deduplicated to CCTX-level units when normalized event cctx_id "
-        "is available. For benign bridges, predicted positive units outside the complete "
-        "CCTX table are counted as extra false positives without reducing true negatives "
-        "from complete valid CCTX."
+        "Signature-level expected counts: ChainSwap expects 530 MINT_WITHOUT_LOCK; "
+        "Meter.io expects 4 AMOUNT_MISMATCH; Nomad 2022-08 expects 382 "
+        "MINT_WITHOUT_LOCK; PNetwork expects 3 CONTRACT_MISMATCH; Qubit expects "
+        "16 CONTRACT_MISMATCH; Ronin 2022 expects 2 MINT_WITHOUT_LOCK; Thorchain "
+        "expects 51 LOCK_WITHOUT_MINT, 9 CONTRACT_MISMATCH, and 42 AMOUNT_MISMATCH. "
+        "Every other bridge/signature is expected negative. Alerts are deduplicated "
+        "to CCTX-level units per signature when normalized event cctx_id is available. "
+        "For benign bridges, predicted positive units outside the complete CCTX table "
+        "are counted as extra false positives without reducing true negatives from "
+        "complete valid CCTX."
     )
     return summary
 
@@ -290,7 +354,9 @@ def write_correctness_artifacts(
     markdown_override: str | None = None,
 ) -> tuple[Path, Path]:
     summary_record = {"run_id": run_id, "event_type": "correctness_summary", **summary}
-    json_path = Path(json_override) if json_override else result_paths.artifact_path(bridge_name, "json")
+    json_path = (
+        Path(json_override) if json_override else result_paths.artifact_path(bridge_name, "json")
+    )
     markdown_path = (
         Path(markdown_override)
         if markdown_override
@@ -365,6 +431,7 @@ def main() -> int:
             bridge_summary,
             filter_records_for_bridge(records, bridge),
         )
+        print_bridge_cctx_totals(bridge, bridge_summary)
 
     summary = build_correctness_summary(args, bridges, alerts, evaluation_windows)
     summary["bridge_summaries"] = bridge_summaries

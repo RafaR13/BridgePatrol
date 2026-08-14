@@ -136,6 +136,7 @@ def calculate_bridge_baseline_metrics(
     predicted_positive_complete_counts_by_bridge: dict[str, int] | None = None,
     expected_positive_units_by_bridge: dict[str, set[str]] | None = None,
     expected_positive_counts_by_bridge: dict[str, int] | None = None,
+    predicted_positive_expected_window_counts_by_bridge: dict[str, int] | None = None,
 ) -> dict[str, float | int | None]:
     """Calculate CCTX-level metrics from bridge-level ground truth.
 
@@ -165,14 +166,27 @@ def calculate_bridge_baseline_metrics(
         )
         if explicit_expected_count:
             expected_negative_count = max(total - explicit_expected_count, 0)
-            bridge_tp = min(predicted_positive, explicit_expected_count)
-            bridge_fp = max(predicted_positive - explicit_expected_count, 0)
+            predicted_on_complete_cctx = (
+                predicted_positive_complete_counts_by_bridge.get(bridge, 0)
+                if predicted_positive_complete_counts_by_bridge is not None
+                else min(predicted_positive, total)
+            )
+            predicted_in_expected_window = (
+                predicted_positive_expected_window_counts_by_bridge.get(
+                    bridge,
+                    predicted_positive,
+                )
+                if predicted_positive_expected_window_counts_by_bridge is not None
+                else predicted_positive
+            )
+            bridge_tp = min(predicted_in_expected_window, explicit_expected_count)
+            bridge_fp = max(predicted_positive - bridge_tp, 0)
             true_positives += bridge_tp
             false_negatives += max(explicit_expected_count - bridge_tp, 0)
             false_positives += bridge_fp
 
             true_negatives += max(
-                expected_negative_count - bridge_fp,
+                expected_negative_count - max(predicted_on_complete_cctx - bridge_tp, 0),
                 0,
             )
         elif explicit_expected_units:
@@ -217,6 +231,99 @@ def calculate_bridge_baseline_metrics(
                 bridge_fp = min(predicted_positive, total) if total else predicted_positive
                 false_positives += bridge_fp
                 true_negatives += max(total - bridge_fp, 0)
+
+    return calculate_metrics(
+        ConfusionMatrix(
+            true_positives=true_positives,
+            false_positives=false_positives,
+            true_negatives=true_negatives,
+            false_negatives=false_negatives,
+        )
+    )
+
+
+def calculate_signature_expected_metrics(
+    predicted_positive_units_by_bridge_signature: dict[str, dict[str, set[str]]],
+    cctx_analyzed_by_bridge: dict[str, int | None],
+    expected_positive_signature_counts_by_bridge: dict[str, dict[str, int]],
+    predicted_positive_complete_counts_by_bridge: dict[str, int] | None = None,
+    predicted_positive_expected_window_counts_by_bridge_signature: (
+        dict[str, dict[str, int]] | None
+    ) = None,
+) -> dict[str, float | int | None]:
+    """Calculate metrics using expected alert counts per bridge and signature type.
+
+    Bridges without expected positive signatures keep the benign bridge behavior:
+    every analyzed complete CCTX is an expected negative, and every predicted
+    alert is a false positive.
+    """
+    true_positives = 0
+    false_positives = 0
+    true_negatives = 0
+    false_negatives = 0
+
+    for bridge, cctx_count in cctx_analyzed_by_bridge.items():
+        total = cctx_count or 0
+        predicted_by_signature = predicted_positive_units_by_bridge_signature.get(
+            bridge,
+            {},
+        )
+        predicted_total = sum(len(units) for units in predicted_by_signature.values())
+        expected_by_signature = expected_positive_signature_counts_by_bridge.get(
+            bridge,
+            {},
+        )
+
+        if expected_by_signature:
+            bridge_tp = 0
+            bridge_expected = 0
+            bridge_expected_signatures = set(expected_by_signature)
+
+            for signature_type, expected_count in expected_by_signature.items():
+                bridge_expected += expected_count
+                if predicted_positive_expected_window_counts_by_bridge_signature:
+                    predicted_count = (
+                        predicted_positive_expected_window_counts_by_bridge_signature
+                        .get(bridge, {})
+                        .get(signature_type, len(predicted_by_signature.get(signature_type, set())))
+                    )
+                else:
+                    predicted_count = len(predicted_by_signature.get(signature_type, set()))
+                bridge_tp += min(predicted_count, expected_count)
+
+            unexpected_predictions = sum(
+                len(units)
+                for signature_type, units in predicted_by_signature.items()
+                if signature_type not in bridge_expected_signatures
+            )
+            expected_signature_predictions = sum(
+                len(predicted_by_signature.get(signature_type, set()))
+                for signature_type in bridge_expected_signatures
+            )
+
+            true_positives += bridge_tp
+            false_negatives += max(bridge_expected - bridge_tp, 0)
+            false_positives += max(expected_signature_predictions - bridge_tp, 0)
+            false_positives += unexpected_predictions
+
+            expected_negative_count = max(total - bridge_expected, 0)
+            predicted_on_complete_cctx = (
+                predicted_positive_complete_counts_by_bridge.get(bridge, 0)
+                if predicted_positive_complete_counts_by_bridge is not None
+                else min(predicted_total, total)
+            )
+            true_negatives += max(
+                expected_negative_count - max(predicted_on_complete_cctx - bridge_tp, 0),
+                0,
+            )
+        else:
+            false_positives += predicted_total
+            predicted_on_complete_cctx = (
+                predicted_positive_complete_counts_by_bridge.get(bridge, 0)
+                if predicted_positive_complete_counts_by_bridge is not None
+                else min(predicted_total, total)
+            )
+            true_negatives += max(total - predicted_on_complete_cctx, 0)
 
     return calculate_metrics(
         ConfusionMatrix(

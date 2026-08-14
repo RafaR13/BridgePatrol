@@ -378,6 +378,34 @@ def _correctness_section(summary: dict[str, Any]) -> list[str]:
     if summary.get("metrics_mode") is not None or summary.get("labels_source") is not None:
         lines.append("")
 
+    expected_by_signature = summary.get("expected_positive_signature_counts_by_bridge") or {}
+    if expected_by_signature:
+        lines.extend(
+            _table(
+                ["Bridge", "Signature type", "Expected alerts"],
+                [
+                    [bridge, signature_type, count]
+                    for bridge, counts_by_signature in sorted(expected_by_signature.items())
+                    for signature_type, count in sorted(counts_by_signature.items())
+                ],
+            )
+        )
+        lines.append("")
+
+    predicted_by_signature = summary.get("predicted_positive_units_by_bridge_signature") or {}
+    if predicted_by_signature:
+        lines.extend(
+            _table(
+                ["Bridge", "Signature type", "Predicted positive units"],
+                [
+                    [bridge, signature_type, count]
+                    for bridge, counts_by_signature in sorted(predicted_by_signature.items())
+                    for signature_type, count in sorted(counts_by_signature.items())
+                ],
+            )
+        )
+        lines.append("")
+
     predicted_units = summary.get("predicted_positive_units_by_bridge") or {}
     if predicted_units:
         complete_predicted_units = (

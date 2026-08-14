@@ -15,7 +15,6 @@ from db.repository.bridge_tables.manual import (
     QubitBlockchainTransactions,
     ChainSwapBlockchainTransactions,
     ThorchainBlockchainTransactions,
-    WormholeBlockchainTransactions,
 )
 from db.repository.bridge_tables.pnetwork import (
     PNetworkBitcoinBlockchainTransactions,
@@ -247,19 +246,6 @@ class ThorchainBlockchainTransactionRepository:
 
     def get_latest_timestamp(start_ts: int | None = None) -> int | None:
         return _get_latest_timestamp(ThorchainBlockchainTransactions, start_ts)
-
-
-class WormholeBlockchainTransactionRepository:
-    def get_all() -> list[WormholeBlockchainTransactions]:
-        return _get_all(WormholeBlockchainTransactions)
-
-    def get_by_time_window(
-        start_ts: int | None = None, end_ts: int | None = None
-    ) -> list[WormholeBlockchainTransactions]:
-        return _get_by_time_window(WormholeBlockchainTransactions, start_ts, end_ts)
-
-    def get_latest_timestamp(start_ts: int | None = None) -> int | None:
-        return _get_latest_timestamp(WormholeBlockchainTransactions, start_ts)
 
 
 class PNetworkBlockchainTransactionRepository:

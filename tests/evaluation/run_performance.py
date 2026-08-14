@@ -21,11 +21,13 @@ from evaluation.result_paths import build_evaluation_result_paths
 from evaluation.reporting import EvaluationReporter, write_json_summary
 from tests.evaluation.evaluation_utils import (
     bridge_scope,
+    clear_normalized_events_for_bridge,
     count_cctx_for_bridges,
     evaluation_windows_for_bridges,
-    normalization_skip_reason,
+    insert_ronin_2022_manual_normalized_events,
+    performance_normalization_skip_reason,
     resolve_bridge_selection,
-    should_run_normalization,
+    should_run_performance_normalization,
     summarize_alerts,
     total_count,
 )
@@ -171,6 +173,13 @@ def summarize_normalization_metrics(records: list[dict]) -> dict:
             metrics["rows_seen"] += int(record.get("rows_seen") or 0)
             metrics["inserted"] += int(record.get("inserted") or 0)
             metrics["skipped"] += int(record.get("skipped") or 0)
+        elif record.get("event_type") == "normalization_manual_events_inserted":
+            inserted = int(record.get("inserted") or 0)
+            skipped = int(record.get("skipped") or 0)
+            metrics["tables"] += 1
+            metrics["rows_seen"] += inserted + skipped
+            metrics["inserted"] += inserted
+            metrics["skipped"] += skipped
 
     totals = {
         "bridges": len(by_bridge),
@@ -210,7 +219,7 @@ def should_run_normalization_phase(args: argparse.Namespace, bridge: str) -> boo
     return (
         args.phase in ("all", "normalization")
         and not args.skip_normalization
-        and should_run_normalization(bridge)
+        and should_run_performance_normalization(bridge)
     )
 
 
@@ -220,7 +229,7 @@ def normalization_skip_payload(args: argparse.Namespace, bridge: str) -> dict | 
     if args.skip_normalization:
         reason = "requested_by_flag"
     else:
-        reason = normalization_skip_reason(bridge)
+        reason = performance_normalization_skip_reason(bridge)
     if reason is None:
         return None
     return {
@@ -302,11 +311,34 @@ def main() -> int:
             bridge_normalization_results.append(payload)
             reporter.write("normalization_skipped", payload)
         elif should_run_normalization_phase(args, bridge):
+            deleted_rows = clear_normalized_events_for_bridge(bridge)
+            reporter.write(
+                "normalization_table_cleared",
+                {
+                    "bridge": bridge,
+                    "table": f"{bridge}_normalized_event",
+                    "deleted_rows": deleted_rows,
+                },
+            )
             normalization_result = run_normalization_for_bridge(
                 bridge,
                 report_path=result_paths.details_jsonl,
                 run_id=run_id,
             )
+            if bridge == "ronin":
+                manual_result = insert_ronin_2022_manual_normalized_events()
+                reporter.write(
+                    "normalization_manual_events_inserted",
+                    {
+                        "bridge": bridge,
+                        "raw_table": "manual_ronin_2022_token_withdrew",
+                        **manual_result,
+                    },
+                )
+                normalization_result = {
+                    **normalization_result,
+                    "manual_events": manual_result,
+                }
             normalization_results.append(normalization_result)
             bridge_normalization_results.append(normalization_result)
 

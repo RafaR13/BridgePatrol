@@ -2,6 +2,9 @@ from db.repository.detection_alert.detection_alert_model import DetectionAlert
 from db.repository.blockchain_transactions.blockchain_transactions_repository import (
     ThorchainBlockchainTransactionRepository,
 )
+from db.repository.cross_chain_transactions.cross_chain_transactions_repository import (
+    ThorchainCrossChainTransactionRepository,
+)
 
 from .analyser import Analyser
 
@@ -10,13 +13,16 @@ class ThorchainAnalyser(Analyser):
     def __init__(self):
         super().__init__("thorchain")
 
-    def fetch_blockchain_transactions(
-        self, start_ts: int | None = None, end_ts: int | None = None
-    ):
+    def fetch_blockchain_transactions(self, start_ts: int | None = None, end_ts: int | None = None):
         return ThorchainBlockchainTransactionRepository.get_by_time_window(start_ts, end_ts)
 
     def fetch_latest_transaction_timestamp(self, start_ts: int | None = None):
         return ThorchainBlockchainTransactionRepository.get_latest_timestamp(start_ts)
+
+    def fetch_cross_chain_transactions(
+        self, start_ts: int | None = None, end_ts: int | None = None
+    ):
+        return ThorchainCrossChainTransactionRepository.get_by_time_window(start_ts, end_ts)
 
     def analyse_bridge_specific_signatures(self) -> list[DetectionAlert]:
         # TODO: validate source vault, memo, asset and amount semantics.
@@ -40,9 +46,10 @@ class ThorchainAnalyser(Analyser):
         """
         Run only checks that can be evaluated from Thorchain source-side data.
 
-        Destination events and transactions are intentionally unavailable, so
-        missing pairs, cross-chain payload comparisons, destination callers,
-        and replay checks must not produce alerts for this bridge.
+        Destination events and transactions are intentionally unavailable, so the
+        CCTX table is used directly to flag source transactions without a
+        destination counterpart. Cross-chain payload comparisons, destination
+        callers, and replay checks must not produce alerts for this bridge.
         """
         self._set_analysis_window(start_ts=start_ts, end_ts=end_ts)
         alerts: list[DetectionAlert] = []
@@ -59,6 +66,14 @@ class ThorchainAnalyser(Analyser):
         from contextlib import nullcontext
 
         with total_timer if total_timer is not None else nullcontext({}):
+            """alerts.extend(
+                self._run_signature_check(
+                    "incomplete_cross_chain_transactions",
+                    self.incomplete_cross_chain_transactions,
+                    self.bridge,
+                )
+            )"""
+
             # Source transaction / token consistency checks.
             alerts.extend(
                 self._run_signature_check(

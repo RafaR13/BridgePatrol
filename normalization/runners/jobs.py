@@ -356,7 +356,7 @@ BRIDGE_JOBS: dict[str, tuple[NormalizationJob, ...]] = {
         NormalizationJob(
             RoninWithdrawalRequested,
             "ronin_withdrawal_requested",
-            lambda row: str(row.withdrawal_id),
+            lambda row: str(row.id),
             map_withdrawal_requested,
         ),
         NormalizationJob(

@@ -63,14 +63,6 @@ class ThorchainCrossChainTransactions(ManualCrossChainTransactionMixin, Base):
     __tablename__ = "thorchain_cross_chain_transactions"
 
 
-class WormholeBlockchainTransactions(BlockchainTransaction):
-    __tablename__ = "wormhole_blockchain_transactions"
-
-
-class WormholeCrossChainTransactions(ManualCrossChainTransactionMixin, Base):
-    __tablename__ = "wormhole_cross_chain_transactions"
-
-
 class ChainSwapBlockchainTransactions(BlockchainTransaction):
     __tablename__ = "chainswap_blockchain_transactions"
 

@@ -31,6 +31,9 @@ def make_event(
     contract_address=None,
     block_number=100,
     timestamp=100,
+    token_in="0xtoken",
+    src_blockchain="source",
+    status="success",
 ):
     return SimpleNamespace(
         id=event_id,
@@ -39,7 +42,7 @@ def make_event(
         transaction_hash=transaction_hash,
         amount_in=amount,
         amount_out=None,
-        token_in="0xtoken",
+        token_in=token_in,
         token_out=None,
         actor_from="0xsender",
         actor_to=recipient,
@@ -47,8 +50,9 @@ def make_event(
         block_number=block_number,
         timestamp=timestamp,
         raw_pk=str(event_id),
-        src_blockchain="source",
+        src_blockchain=src_blockchain,
         dst_blockchain="destination",
+        status=status,
         extra_data=None,
     )
 
@@ -58,6 +62,8 @@ def make_transaction(
     *,
     block_number=100,
     timestamp=100,
+    value=0,
+    status=1,
 ):
     return SimpleNamespace(
         transaction_hash=transaction_hash,
@@ -66,6 +72,8 @@ def make_transaction(
         calls=None,
         from_address=None,
         to_address=None,
+        value=value,
+        status=status,
     )
 
 

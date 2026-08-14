@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from db.repository.detection_alert.detection_alert_model import DetectionAlert
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
 from db.repository.transfer_events.transfer_events_repository import TransferRepository
@@ -17,7 +19,6 @@ MANUAL_NORMALIZED_TRANSFER_BRIDGES = {
     "pnetwork",
     "qubit",
     "thorchain",
-    "wormhole",
 }
 TRANSFER_REPOSITORIES = {
     "across": TransferRepository("across_transfers"),
@@ -93,6 +94,7 @@ class TokenContractAttacksMixin:
 
                 # 2 - for each event, check if it's native or ERC20 token
                 tx = txs_by_hash.get(event.transaction_hash)
+                amount_invalid_fields: list[str] = []
                 if self._is_native_token(event, config):
                     self._debug(
                         "token_contract_attacks: native check "
@@ -116,12 +118,38 @@ class TokenContractAttacksMixin:
                         config,
                         tx,
                     )
+                    invalid_fields, amount_invalid_fields = (
+                        self._split_amount_mismatch_fields(invalid_fields)
+                    )
 
                 self._debug(
                     "token_contract_attacks: result "
                     f"id={event.id} tx={event.transaction_hash} invalid_fields={invalid_fields}"
                 )
                 if not invalid_fields:
+                    if amount_invalid_fields:
+                        correlation_id = (
+                            event.correlation_id or event.transaction_hash or str(event.raw_pk)
+                        )
+                        alerts.append(
+                            self.create_detection_alert(
+                                signature_type=SignatureType.AMOUNT_MISMATCH,
+                                severity=AlertSeverity.HIGH,
+                                bridge=self.bridge,
+                                correlation_id=correlation_id,
+                                correlation_type=config.correlation_type,
+                                src_event_id=event.id,
+                                dst_event_id=None,
+                                title=f"{self.bridge}: {config.event_label} amount mismatch",
+                                description=(
+                                    f"Found {config.event_label} event with "
+                                    f"correlation_id={correlation_id}. "
+                                    f"Invalid amount fields: {'; '.join(amount_invalid_fields)}."
+                                ),
+                                created_at_ts=self._created_at_ts_for_event(event),
+                                probability="TODO",
+                            )
+                        )
                     continue
 
                 correlation_id = event.correlation_id or event.transaction_hash or str(event.raw_pk)
@@ -144,6 +172,26 @@ class TokenContractAttacksMixin:
                         probability="TODO",
                     )
                 )
+                if amount_invalid_fields:
+                    alerts.append(
+                        self.create_detection_alert(
+                            signature_type=SignatureType.AMOUNT_MISMATCH,
+                            severity=AlertSeverity.HIGH,
+                            bridge=self.bridge,
+                            correlation_id=correlation_id,
+                            correlation_type=config.correlation_type,
+                            src_event_id=event.id,
+                            dst_event_id=None,
+                            title=f"{self.bridge}: {config.event_label} amount mismatch",
+                            description=(
+                                f"Found {config.event_label} event with "
+                                f"correlation_id={correlation_id}. "
+                                f"Invalid amount fields: {'; '.join(amount_invalid_fields)}."
+                            ),
+                            created_at_ts=self._created_at_ts_for_event(event),
+                            probability="TODO",
+                        )
+                    )
                 print(
                     "[token_contract_attacks] "
                     f"bridge={self.bridge} config={config.event_label} "
@@ -246,6 +294,19 @@ class TokenContractAttacksMixin:
 
         return invalid_fields
 
+    def _split_amount_mismatch_fields(
+        self,
+        invalid_fields: list[str],
+    ) -> tuple[list[str], list[str]]:
+        contract_fields = []
+        amount_fields = []
+        for field in invalid_fields:
+            if field.startswith("AMOUNT_MISMATCH:"):
+                amount_fields.append(field.removeprefix("AMOUNT_MISMATCH:").strip())
+            else:
+                contract_fields.append(field)
+        return contract_fields, amount_fields
+
     def _check_erc20_token_contract(
         self,
         event: NormalizedEvent,
@@ -267,6 +328,13 @@ class TokenContractAttacksMixin:
 
         # check if a transfer event actually occurred
         if not transfers:
+            native_value_fields = self._check_native_tx_value_without_transfer(
+                event,
+                tx,
+                config,
+            )
+            if native_value_fields is not None:
+                return invalid_fields + native_value_fields
             invalid_fields.append(
                 f"0) no ERC20 Transfer event found in the {config.event_label} transaction"
             )
@@ -346,6 +414,35 @@ class TokenContractAttacksMixin:
             )
 
         return invalid_fields + transfer_invalid_fields
+
+    def _check_native_tx_value_without_transfer(
+        self,
+        event: NormalizedEvent,
+        tx,
+        config: TokenContractAttackConfig,
+    ) -> list[str] | None:
+        tx_value = getattr(tx, "value", None)
+        if tx is None or tx_value is None:
+            return None
+
+        tx_value = self._decimal_or_none(tx_value)
+        event_amount = self._decimal_or_none(event.amount_in)
+        if tx_value is None or tx_value == 0:
+            return None
+
+        if event_amount is not None and tx_value == event_amount:
+            return []
+
+        return [
+            "AMOUNT_MISMATCH: "
+            f"tx.value does not match {config.amount_label} "
+            f"(tx.value={tx_value}, amount={event.amount_in})"
+        ]
+
+    def _decimal_or_none(self, value) -> Decimal | None:
+        if value is None:
+            return None
+        return Decimal(str(value))
 
     def _transfers_for_token_contract_checks_by_transaction_hash(self) -> dict[str, list]:
         if self.bridge in MANUAL_NORMALIZED_TRANSFER_BRIDGES:

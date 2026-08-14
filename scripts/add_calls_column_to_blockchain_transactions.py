@@ -31,7 +31,6 @@ BLOCKCHAIN_TRANSACTION_TABLES = (
     "qubit_blockchain_transactions",
     "ronin_blockchain_transactions",
     "thorchain_blockchain_transactions",
-    "wormhole_blockchain_transactions",
 )
 
 

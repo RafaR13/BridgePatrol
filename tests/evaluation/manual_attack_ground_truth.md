@@ -1,7 +1,5 @@
 # Manual Attack Ground Truth
 
-Wormhole is intentionally excluded from this document.
-
 The `Expected signatures` column uses the project `SignatureType` names. When a
 case is a known attack pattern but the current project does not yet implement a
 reliable signature for it, the table says `coverage gap`.

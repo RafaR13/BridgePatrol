@@ -1,17 +1,24 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from decimal import Decimal
+import json
 from typing import Any
 
 from signature_detection.constants import Bridges
 
-
 Window = dict[str, int]
 ALL_BRIDGE = "all"
-MANUAL_NORMALIZATION_BRIDGES = {"meter.io", "pnetwork", "qubit", "thorchain", "wormhole"}
+MANUAL_NORMALIZATION_BRIDGES = {"meter.io", "pnetwork", "qubit", "thorchain"}
 MANUAL_TRANSACTION_ONLY_BRIDGES = {"chainswap"}
+PERFORMANCE_MANUAL_NORMALIZATION_SKIP_BRIDGES = {
+    "chainswap",
+    "meter.io",
+    "pnetwork",
+    "qubit",
+    "thorchain",
+}
 NO_NORMALIZATION_JOB_BRIDGES = {"stargate"}
-EXTRA_EVALUATION_BRIDGES = {"wormhole"}
 EVALUATION_START_TS = 1735689600  # 2025-01-01 00:00:00 UTC
 EVALUATION_END_TS = 1735776000  # 2025-01-02 00:00:00 UTC
 EVALUATION_WINDOWS_BY_BRIDGE = {
@@ -28,23 +35,34 @@ EVALUATION_WINDOWS_BY_BRIDGE = {
     "pnetwork": (1632072029, 1632073328),  # 2021-09-19 17:20:29..17:42:08 UTC
     "meter.io": (1644066697, 1644072468),  # 2022-02-05 13:11:37..14:47:48 UTC
     "qubit": (1639984426, 1643321192),  # 2021-12-20 07:13:46..2022-01-27 22:06:32 UTC
-    "wormhole": (1643824684, 1643824724),  # 2022-02-02 17:58:04..17:58:44 UTC
     "thorchain": (1624899151, 1626377786),  # 2021-06-28 16:52:31..2021-07-15 19:36:26 UTC
 }
 EVALUATION_WINDOW_SETS_BY_BRIDGE = {
     "nomad": [
-        {"start_ts": 1654041916, "end_ts": 1654128000},  # 2022-06-01 00:05:16..2022-06-02 00:00:00 UTC
-        {"start_ts": 1659312000, "end_ts": 1659558228},  # 2022-08-01 00:00:00..2022-08-03 20:23:48 UTC
+        {
+            "start_ts": 1654041916,
+            "end_ts": 1654128000,
+        },  # 2022-06-01 00:05:16..2022-06-02 00:00:00 UTC
+        {
+            "start_ts": 1659312000,
+            "end_ts": 1659558228,
+        },  # 2022-08-01 00:00:00..2022-08-03 20:23:48 UTC
     ],
     "ronin": [
-        {"start_ts": 1647820871, "end_ts": 1648166400},  # 2022-03-21 00:01:11..2022-03-25 00:00:00 UTC
-        {"start_ts": 1735689655, "end_ts": 1736465783},  # 2025-01-01 00:00:55..2025-01-09 23:36:23 UTC
+        {
+            "start_ts": 1647820871,
+            "end_ts": 1648166400,
+        },  # 2022-03-21 00:01:11..2022-03-25 00:00:00 UTC
+        {
+            "start_ts": 1735689655,
+            "end_ts": 1736465783,
+        },  # 2025-01-01 00:00:55..2025-01-09 23:36:23 UTC
     ],
 }
 
 
 def supported_evaluation_bridges() -> list[str]:
-    bridge_names = {bridge.value for bridge in Bridges} | EXTRA_EVALUATION_BRIDGES
+    bridge_names = {bridge.value for bridge in Bridges}
     return sorted(bridge_names)
 
 
@@ -70,6 +88,137 @@ def normalization_skip_reason(bridge: str) -> str | None:
     if bridge in NO_NORMALIZATION_JOB_BRIDGES:
         return "no_normalization_jobs"
     return None
+
+
+def performance_normalization_skip_reason(bridge: str) -> str | None:
+    if bridge in PERFORMANCE_MANUAL_NORMALIZATION_SKIP_BRIDGES:
+        return "manual_dataset"
+    if bridge in NO_NORMALIZATION_JOB_BRIDGES:
+        return "no_normalization_jobs"
+    return None
+
+
+def should_run_performance_normalization(bridge: str) -> bool:
+    return performance_normalization_skip_reason(bridge) is None
+
+
+def clear_normalized_events_for_bridge(bridge: str) -> int | None:
+    from sqlalchemy import text
+
+    from db.database import get_session
+    from db.repository.normalized_event.normalized_event_model import (
+        get_normalized_event_model,
+    )
+
+    model = get_normalized_event_model(bridge)
+    table_name = model.__tablename__
+    session = get_session()
+    try:
+        count = session.query(model).count()
+        session.execute(text(f"TRUNCATE TABLE {table_name} RESTART IDENTITY"))
+        session.commit()
+        return count
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+RONIN_2022_MANUAL_TOKEN_WITHDREW_EVENTS = (
+    {
+        "transaction_hash": "0xc28fad5e8d5e0ce6a2eaf67b6687be5d58113e16be590824d6cfa1a94467d0b7",
+        "block_number": 14442835,
+        "timestamp": 1648042149,
+        "log_index": 67,
+        "withdrawal_id": 2000000,
+        "withdrawer": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+        "input_token": "0xc99a6a985ed2cac1ef41640596c5a5f9f4e19ef5",
+        "recipient": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+        "output_token": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+        "amount": Decimal("173600000000000000000000"),
+    },
+    {
+        "transaction_hash": "0xed2c72ef1a552ddaec6dd1f5cddf0b59a8f37f82bdda5257d9c7c37db7bb9b08",
+        "block_number": 14442840,
+        "timestamp": 1648042264,
+        "log_index": 30,
+        "withdrawal_id": 2000001,
+        "withdrawer": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+        "input_token": "0x0b7007c13325c48911f73a2dad5fa5dcbf808adc",
+        "recipient": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+        "output_token": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        "amount": Decimal("25500000000000"),
+    },
+)
+
+
+def insert_ronin_2022_manual_normalized_events() -> dict[str, int]:
+    from db.database import get_session
+    from db.repository.bridge_tables.ronin import RoninCrossChainTransactions
+    from db.repository.normalized_event.normalized_event_model import RoninNormalizedEvent
+    from normalization.event_types import NormalizedEventType
+
+    session = get_session()
+    inserted = 0
+    skipped = 0
+    try:
+        for event in RONIN_2022_MANUAL_TOKEN_WITHDREW_EVENTS:
+            correlation_id = str(event["withdrawal_id"])
+            existing = (
+                session.query(RoninNormalizedEvent)
+                .filter(RoninNormalizedEvent.event_type == NormalizedEventType.TOKEN_WITHDREW.value)
+                .filter(RoninNormalizedEvent.correlation_id == correlation_id)
+                .first()
+            )
+            if existing is not None:
+                skipped += 1
+                continue
+
+            cctx = (
+                session.query(RoninCrossChainTransactions)
+                .filter(
+                    RoninCrossChainTransactions.dst_transaction_hash == event["transaction_hash"]
+                )
+                .first()
+            )
+            normalized_event = RoninNormalizedEvent(
+                bridge="ronin",
+                blockchain="ethereum",
+                raw_table="manual_ronin_2022_token_withdrew",
+                raw_pk=correlation_id,
+                transaction_hash=event["transaction_hash"],
+                cctx_id=str(cctx.id) if cctx is not None else None,
+                block_number=event["block_number"],
+                timestamp=event["timestamp"],
+                log_index=event["log_index"],
+                event_type=NormalizedEventType.TOKEN_WITHDREW.value,
+                correlation_id=correlation_id,
+                src_blockchain="ronin",
+                dst_blockchain="ethereum",
+                actor_from=event["withdrawer"],
+                actor_to=event["recipient"],
+                token_in=event["input_token"],
+                token_out=event["output_token"],
+                amount_in=event["amount"],
+                amount_out=event["amount"],
+                contract_address="0x1a2a1c938ce3ec39b6d47113c7955baa9dd454f2",
+                status="1",
+                extra_data=json.dumps(
+                    {"kind": "ERC20", "token_standard": "ERC20"},
+                    ensure_ascii=False,
+                ),
+            )
+            session.add(normalized_event)
+            inserted += 1
+
+        session.commit()
+        return {"inserted": inserted, "skipped": skipped}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 
 def bridge_scope(bridges: list[str]) -> str:
@@ -116,11 +265,15 @@ def evaluation_windows_for_bridges(
 ) -> dict[str, dict[str, Any]]:
     return {
         bridge: {
-            "start_ts": windows[0]["start_ts"] if len(windows) == 1 else min(
-                window["start_ts"] for window in windows
+            "start_ts": (
+                windows[0]["start_ts"]
+                if len(windows) == 1
+                else min(window["start_ts"] for window in windows)
             ),
-            "end_ts": windows[0]["end_ts"] if len(windows) == 1 else max(
-                window["end_ts"] for window in windows
+            "end_ts": (
+                windows[0]["end_ts"]
+                if len(windows) == 1
+                else max(window["end_ts"] for window in windows)
             ),
             "windows": windows,
         }
@@ -287,8 +440,7 @@ def total_count(values: dict[str, int | None]) -> int | None:
 
 def summarize_alerts(alerts) -> dict[str, Any]:
     by_signature = Counter(
-        str(getattr(alert.signature_type, "value", alert.signature_type))
-        for alert in alerts
+        str(getattr(alert.signature_type, "value", alert.signature_type)) for alert in alerts
     )
     by_bridge = Counter(str(alert.bridge) for alert in alerts)
     return {
@@ -345,8 +497,64 @@ def predicted_positive_units_by_bridge(
     return dict(units_by_bridge)
 
 
+def predicted_positive_units_by_bridge_and_signature(
+    alerts,
+    signature_types: set[str] | None = None,
+) -> dict[str, dict[str, set[str]]]:
+    """Resolve alert predictions to CCTX-level units, split by signature type."""
+    event_ids_by_bridge: dict[str, set[int]] = defaultdict(set)
+    filtered_alerts = [
+        alert
+        for alert in alerts
+        if signature_types is None or _alert_signature_type(alert) in signature_types
+    ]
+
+    for alert in filtered_alerts:
+        bridge = str(alert.bridge)
+        for field in ("src_event_id", "dst_event_id"):
+            event_id = getattr(alert, field, None)
+            if event_id is not None:
+                event_ids_by_bridge[bridge].add(event_id)
+
+    cctx_by_bridge_event_id = _load_cctx_ids_for_event_ids(event_ids_by_bridge)
+
+    units_by_bridge_signature: dict[str, dict[str, set[str]]] = defaultdict(
+        lambda: defaultdict(set)
+    )
+    for alert in filtered_alerts:
+        bridge = str(alert.bridge)
+        signature_type = _alert_signature_type(alert)
+        unit = _prediction_unit_for_alert(
+            alert,
+            cctx_by_bridge_event_id.get(bridge, {}),
+        )
+        units_by_bridge_signature[bridge][signature_type].add(unit)
+
+    return {
+        bridge: dict(units_by_signature)
+        for bridge, units_by_signature in units_by_bridge_signature.items()
+    }
+
+
 def _alert_signature_type(alert) -> str:
     return str(getattr(alert.signature_type, "value", alert.signature_type))
+
+
+def _prediction_unit_for_alert(alert, event_cctx_ids: dict[int, str | None]) -> str:
+    for field in ("src_event_id", "dst_event_id"):
+        event_id = getattr(alert, field, None)
+        if event_id is not None and event_cctx_ids.get(event_id):
+            return f"cctx:{event_cctx_ids[event_id]}"
+
+    if getattr(alert, "correlation_id", None):
+        return f"correlation:{alert.correlation_id}"
+
+    signature_type = getattr(alert.signature_type, "value", alert.signature_type)
+    return (
+        f"alert:{signature_type}:"
+        f"{getattr(alert, 'src_event_id', None)}:"
+        f"{getattr(alert, 'dst_event_id', None)}"
+    )
 
 
 def _load_cctx_ids_for_event_ids(
@@ -368,11 +576,7 @@ def _load_cctx_ids_for_event_ids(
                 model = get_normalized_event_model(bridge)
             except ValueError:
                 continue
-            rows = (
-                session.query(model.id, model.cctx_id)
-                .filter(model.id.in_(event_ids))
-                .all()
-            )
+            rows = session.query(model.id, model.cctx_id).filter(model.id.in_(event_ids)).all()
             cctx_by_bridge_event_id[bridge] = {
                 event_id: str(cctx_id) if cctx_id is not None else None
                 for event_id, cctx_id in rows

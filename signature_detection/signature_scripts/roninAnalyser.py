@@ -7,6 +7,9 @@ from typing import List
 from db.repository.blockchain_transactions.blockchain_transactions_repository import (
     RoninBlockchainTransactionRepository,
 )
+from db.repository.cross_chain_transactions.cross_chain_transactions_repository import (
+    RoninCrossChainTransactionRepository,
+)
 from normalization.event_types import NormalizedEventType
 
 from .analyser import Analyser
@@ -27,13 +30,16 @@ class RoninAnalyser(Analyser):
     def __init__(self):
         super().__init__("ronin")
 
-    def fetch_blockchain_transactions(
-        self, start_ts: int | None = None, end_ts: int | None = None
-    ):
+    def fetch_blockchain_transactions(self, start_ts: int | None = None, end_ts: int | None = None):
         return RoninBlockchainTransactionRepository.get_by_time_window(start_ts, end_ts)
 
     def fetch_latest_transaction_timestamp(self, start_ts: int | None = None):
         return RoninBlockchainTransactionRepository.get_latest_timestamp(start_ts)
+
+    def fetch_cross_chain_transactions(
+        self, start_ts: int | None = None, end_ts: int | None = None
+    ):
+        return RoninCrossChainTransactionRepository.get_by_time_window(start_ts, end_ts)
 
     def fetch_blockchain_transactions_with_receipts_with_signatures(self):
         transactions = (
@@ -53,6 +59,11 @@ class RoninAnalyser(Analyser):
 
     def bridge_specific_signature_checks(self):
         return (
+            (
+                "incomplete_cross_chain_transactions",
+                self.incomplete_cross_chain_transactions,
+                (self.bridge,),
+            ),
             ("contract_discrepancies", self.contract_discrepancies, ()),
             ("ronin_proofs", self.analyse_ronin_proofs, ()),
             ("token_contract_attacks", self.token_contract_attacks, ()),
@@ -256,94 +267,3 @@ class RoninAnalyser(Analyser):
                     )
 
         return alerts
-
-    """
-    # token contract attacks:
-    def _check_ronin_native_token(self, event, tx, expected_contract) -> list[str]:
-        token contract checks regarding native tokens
-        invalid_fields = []
-
-        # 1) verificar se o "value" da transação é o mesmo do receipt.quantity
-        if tx is None or tx.value != event.amount_in:
-            invalid_fields.append(
-                "1) tx.value does not match requested amount "
-                f"(tx.value={getattr(tx, 'value', '<missing>')}, amount={event.amount_in})"
-            )
-
-        # 2) verificar se o receipt tokenAddr é o contract oficial da bridge
-        if str(event.contract_address).lower() != expected_contract:
-            invalid_fields.append(
-                "2) event contract is not the official Ronin bridge "
-                f"(contract={event.contract_address or '<missing>'}, expected={expected_contract})"
-            )
-
-        # 3) verificar se o status é success
-        if str(event.status) != "1":
-            invalid_fields.append(
-                f"3) transaction status is not success (status={event.status or '<missing>'})"
-            )
-
-        return invalid_fields
-
-    def _check_ronin_erc20_token(self, event, transfers) -> list[str]:
-        token contract checks regarding ERC20 tokens
-        invalid_fields = []
-
-        # 0) Verificar se houve transfer event nesta transação
-        if not transfers:
-            return ["0) no ERC20 Transfer event found in the request transaction"]
-
-        matching_transfers = [
-            transfer
-            for transfer in transfers
-            if str(transfer.token_address).lower() == str(event.token_in).lower()
-            and str(transfer.to_address).lower() == str(event.contract_address).lower()
-            and str(transfer.from_address).lower() == str(event.actor_from).lower()
-            and transfer.amount == event.amount_in
-        ]
-        if matching_transfers:
-            return invalid_fields
-
-        token_transfers = [
-            transfer
-            for transfer in transfers
-            if str(transfer.token_address).lower() == str(event.token_in).lower()
-        ]
-
-        # 1) verificar se o transfer.to é o address do token
-        if not any(
-            str(transfer.to_address).lower() == str(event.contract_address).lower()
-            for transfer in token_transfers
-        ):
-            invalid_fields.append(
-                "1) no token Transfer to the request contract "
-                f"(expected_to={event.contract_address or '<missing>'})"
-            )
-
-        # 2) verificar se o transfer.from é quem fez o request
-        if not any(
-            str(transfer.from_address).lower() == str(event.actor_from).lower()
-            for transfer in token_transfers
-        ):
-            invalid_fields.append(
-                "2) no token Transfer from the request actor "
-                f"(expected_from={event.actor_from or '<missing>'})"
-            )
-
-        # 3) verificar se transfer.value é igual ao receipt.info.quantity
-        if not any(transfer.amount == event.amount_in for transfer in token_transfers):
-            invalid_fields.append(
-                "3) no token Transfer amount matches the request amount "
-                f"(expected_amount={event.amount_in})"
-            )
-
-        if not invalid_fields:
-            invalid_fields.append("1) 2) 3) no single token Transfer matches all request checks")
-
-        return invalid_fields
-
-    '''
-    def token_contract_attacks(self) -> list[DetectionAlert]:
-        return super().token_contract_attacks()
-    '''
-    """

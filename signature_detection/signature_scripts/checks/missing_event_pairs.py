@@ -10,6 +10,18 @@ from signature_detection.constants import (
 
 
 class MissingEventPairsMixin:
+    def _cctx_correlation_id(self, bridge: str, cctx) -> str:
+        cctx_id = getattr(cctx, "cctx_id", None)
+        if cctx_id is not None:
+            return str(cctx_id)
+
+        for field in ("deposit_id", "id"):
+            value = getattr(cctx, field, None)
+            if value is not None:
+                return f"{bridge}:{field}:{value}"
+
+        return f"{bridge}:unknown_cctx"
+
     def _side_has_transaction(self, cctx, side: str) -> bool:
         return getattr(cctx, f"{side}_transaction_hash", None) is not None
 
@@ -44,7 +56,7 @@ class MissingEventPairsMixin:
             if has_source == has_destination:
                 continue
 
-            cctx_id = getattr(cctx, "cctx_id", None)
+            cctx_id = self._cctx_correlation_id(bridge, cctx)
             if has_destination:
                 timestamp = self._cctx_side_timestamp(cctx, "dst")
                 if not self._is_timestamp_in_analysis_window(timestamp):
@@ -146,9 +158,7 @@ class MissingEventPairsMixin:
 
         if boundary is None:
             window_boundaries = [
-                candidate
-                for candidate in (start_ts, end_ts)
-                if candidate is not None
+                candidate for candidate in (start_ts, end_ts) if candidate is not None
             ]
             if window_boundaries:
                 boundary = min(
@@ -161,28 +171,26 @@ class MissingEventPairsMixin:
             return "HIGH: no analysis time window was configured."
 
         bridge_timeout = BRIDGE_CCTX_TIMEOUTS.get(bridge)
-        typical_timeout = (
-            bridge_timeout.typical_seconds if bridge_timeout is not None else 15 * 60
-        )
+        typical_timeout = bridge_timeout.typical_seconds if bridge_timeout is not None else 15 * 60
         max_timeout = bridge_timeout.max_seconds if bridge_timeout is not None else 60 * 60
         distance_to_window_boundary = abs(event_timestamp - boundary)
 
         if distance_to_window_boundary <= typical_timeout:
-            probability_score = 0.05 + (
-                0.15 * distance_to_window_boundary / typical_timeout
-            )
+            probability_score = 0.05 + (0.15 * distance_to_window_boundary / typical_timeout)
         elif distance_to_window_boundary <= max_timeout:
             typical_to_max_range = max(max_timeout - typical_timeout, 1)
             typical_overrun = distance_to_window_boundary - typical_timeout
-            probability_score = 0.20 + (
-                0.40 * typical_overrun / typical_to_max_range
-            )
+            probability_score = 0.20 + (0.40 * typical_overrun / typical_to_max_range)
         else:
             max_overrun = distance_to_window_boundary - max_timeout
-            probability_score = 0.60 + min(
-                max_overrun / (3 * max_timeout),
-                1,
-            ) * 0.35
+            probability_score = (
+                0.60
+                + min(
+                    max_overrun / (3 * max_timeout),
+                    1,
+                )
+                * 0.35
+            )
 
         if probability_score < 0.30:
             label = "LOW"
@@ -202,6 +210,8 @@ class MissingEventPairsMixin:
     def lock_without_mint(self, bridge: str) -> list[DetectionAlert]:
         """lock event without a corresponding mint event"""
         print("starting analysis for lock_without_mint")
+        print("Ignoring this check for now, as it is not by itself an indicator of token theft")
+        return []
         # TODO: check if proof was sent but no mint occured
         alerts = []
 

@@ -619,6 +619,18 @@ TOKEN_CONTRACT_ATTACK_CONFIG: dict[str, tuple[TokenContractAttackConfig, ...]] =
             title="qubit: Deposit failed token contract checks",
         ),
     ),
+    "thorchain": (
+        TokenContractAttackConfig(
+            event_type=NormalizedEventType.DEPOSIT,
+            native_tokens=NATIVE_TOKENS["thorchain"],
+            expected_contracts=THORCHAIN_OBSERVED_SOURCE_CONTRACTS,
+            correlation_type="thorchain_deposit_contract_attack",
+            event_label="Deposit",
+            actor_label="sender",
+            amount_label="deposit amount",
+            title="thorchain: Deposit failed token contract checks",
+        ),
+    ),
 }
 
 

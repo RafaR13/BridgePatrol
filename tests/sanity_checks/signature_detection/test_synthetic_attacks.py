@@ -379,6 +379,49 @@ def test_qubit_uses_related_transfer_for_amount_checks(synthetic_analysis):
     assert {alert.dst_event_id for alert in alerts} == {transfer.id}
 
 
+def test_thorchain_deposit_without_transfer_accepts_matching_tx_value(synthetic_analysis):
+    event = make_event(
+        1,
+        NormalizedEventType.DEPOSIT,
+        "thorchain-deposit",
+        "0xsource",
+        amount=100,
+        token_in="0x0000000000000000000000000000000000000000",
+        src_blockchain="ethereum",
+        contract_address="0xc145990e84155416144c532e31f89b840ca8c2ce",
+    )
+    analyser = synthetic_analysis(
+        "thorchain",
+        [event],
+        [make_transaction("0xsource", value=100)],
+    )
+
+    assert analyser.token_contract_attacks() == []
+
+
+def test_thorchain_deposit_without_transfer_flags_tx_value_mismatch(synthetic_analysis):
+    event = make_event(
+        1,
+        NormalizedEventType.DEPOSIT,
+        "thorchain-deposit",
+        "0xsource",
+        amount=100,
+        token_in="0x0000000000000000000000000000000000000000",
+        src_blockchain="ethereum",
+        contract_address="0xc145990e84155416144c532e31f89b840ca8c2ce",
+    )
+    analyser = synthetic_analysis(
+        "thorchain",
+        [event],
+        [make_transaction("0xsource", value=200)],
+    )
+
+    alerts = analyser.token_contract_attacks()
+
+    assert signature_types(alerts) == {SignatureType.AMOUNT_MISMATCH}
+    assert alerts[0].src_event_id == event.id
+
+
 @pytest.mark.parametrize(
     "movement_type",
     (NormalizedEventType.TRANSFER, NormalizedEventType.INTERNAL_TRANSFER),

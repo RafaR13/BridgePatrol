@@ -7,7 +7,6 @@ from db.repository.bridge_tables.debridge import DeBridgeBlockchainTransactions
     MeterIoBlockchainTransactions,
     QubitBlockchainTransactions,
     ThorchainBlockchainTransactions,
-    WormholeBlockchainTransactions,
 )"""
 from db.repository.bridge_tables.mayan import MayanBlockchainTransactions
 from db.repository.bridge_tables.nomad import NomadBlockchainTransactions
@@ -28,7 +27,6 @@ TX_CONTEXT_MODELS = {
     # "qubit": QubitBlockchainTransactions,
     "ronin": RoninBlockchainTransactions,
     # "thorchain": ThorchainBlockchainTransactions,
-    # "wormhole": WormholeBlockchainTransactions,
 }
 # NOTE: commented bridges are the ones where we manually added data, so normalization isn't necessary. If, in the future, we add support for these bridges in XChainDataGen, then uncomment
 

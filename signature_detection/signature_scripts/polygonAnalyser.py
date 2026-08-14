@@ -30,9 +30,7 @@ class PolygonAnalyser(Analyser):
     def __init__(self):
         super().__init__("polygon")
 
-    def fetch_blockchain_transactions(
-        self, start_ts: int | None = None, end_ts: int | None = None
-    ):
+    def fetch_blockchain_transactions(self, start_ts: int | None = None, end_ts: int | None = None):
         return PolygonBlockchainTransactionRepository.get_by_time_window(start_ts, end_ts)
 
     def fetch_latest_transaction_timestamp(self, start_ts: int | None = None):
@@ -293,95 +291,3 @@ class PolygonAnalyser(Analyser):
 
         print(f"cought {len(alerts)} alerts")
         return alerts
-
-    '''
-    # token contract attacks:
-    def _check_locked_token_native(self, event, tx) -> list[str]:
-        """token contract checks regarding native tokens"""
-        invalid_fields = []
-
-        # 1) verificar se o "value" da transação é o mesmo do receipt.quantity
-        if tx is None or tx.value != event.amount_in:
-            invalid_fields.append(
-                "1) tx.value does not match locked amount "
-                f"(tx.value={getattr(tx, 'value', '<missing>')}, amount={event.amount_in})"
-            )
-
-        # 2) verificar se o receipt.mainchain.tokenAddr é o contract oficial da bridge
-        if str(event.address).lower() != self.POLYGON_NATIVE_BRIDGE_CONTRACT:
-            invalid_fields.append(
-                "2) LockedToken contract is not the official native bridge "
-                f"(contract={event.contract_address or '<missing>'}, "
-                f"expected={self.POLYGON_NATIVE_BRIDGE_CONTRACT})"
-            )
-
-        # 3) verificar se o status é success
-        if str(event.status) != "1":
-            invalid_fields.append(
-                f"3) transaction status is not success (status={event.status or '<missing>'})"
-            )
-
-        return invalid_fields
-
-    def _check_locked_token_erc20(self, event, transfers) -> list[str]:
-        """token contract checks regarding ERC20 tokens"""
-        invalid_fields = []
-
-        # 0) Verificar se houve transfer event nesta transação
-        if not transfers:
-            return ["0) no ERC20 Transfer event found in the LockedToken transaction"]
-
-        matching_transfers = [
-            transfer
-            for transfer in transfers
-            if str(transfer.token_address).lower() == str(event.token_in).lower()
-            and str(transfer.to_address).lower() == str(event.contract_address).lower()
-            and str(transfer.from_address).lower() == str(event.actor_from).lower()
-            and transfer.amount == event.amount_in
-        ]
-        if matching_transfers:
-            return invalid_fields
-
-        token_transfers = [
-            transfer
-            for transfer in transfers
-            if str(transfer.token_address).lower() == str(event.token_in).lower()
-        ]
-
-        # 1) verificar se o transfer.to é o address do token
-        if not any(
-            str(transfer.to_address).lower() == str(event.contract_address).lower()
-            for transfer in token_transfers
-        ):
-            invalid_fields.append(
-                "1) no token Transfer to the LockedToken contract "
-                f"(expected_to={event.contract_address or '<missing>'})"
-            )
-
-        # 2) verificar se o transfer.from é quem fez o lockedERC20
-        if not any(
-            str(transfer.from_address).lower() == str(event.actor_from).lower()
-            for transfer in token_transfers
-        ):
-            invalid_fields.append(
-                "2) no token Transfer from the LockedToken depositor "
-                f"(expected_from={event.actor_from or '<missing>'})"
-            )
-
-        # 3) verificar se transfer.value é igual ao receipt.info.quantity
-        if not any(transfer.amount == event.amount_in for transfer in token_transfers):
-            invalid_fields.append(
-                "3) no token Transfer amount matches the LockedToken amount "
-                f"(expected_amount={event.amount_in})"
-            )
-
-        if not invalid_fields:
-            invalid_fields.append(
-                "1) 2) 3) no single token Transfer matches all LockedToken checks"
-            )
-
-        return invalid_fields
-
-    def token_contract_attacks(self) -> list[DetectionAlert]:
-        return super().token_contract_attacks()
-    '''

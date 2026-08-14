@@ -14,7 +14,6 @@ from db.repository.bridge_tables.manual import (
     QubitCrossChainTransactions,
     ChainSwapCrossChainTransactions,
     ThorchainCrossChainTransactions,
-    WormholeCrossChainTransactions,
 )
 from db.repository.bridge_tables.pnetwork import PNetworkCrossChainTransactions
 
@@ -173,16 +172,6 @@ class ThorchainCrossChainTransactionRepository:
         start_ts: int | None = None, end_ts: int | None = None
     ) -> list[ThorchainCrossChainTransactions]:
         return _get_by_time_window(ThorchainCrossChainTransactions, start_ts, end_ts)
-
-
-class WormholeCrossChainTransactionRepository:
-    def get_all() -> list[WormholeCrossChainTransactions]:
-        return _get_all(WormholeCrossChainTransactions)
-
-    def get_by_time_window(
-        start_ts: int | None = None, end_ts: int | None = None
-    ) -> list[WormholeCrossChainTransactions]:
-        return _get_by_time_window(WormholeCrossChainTransactions, start_ts, end_ts)
 
 
 class PNetworkCrossChainTransactionRepository:
