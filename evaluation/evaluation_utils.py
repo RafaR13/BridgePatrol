@@ -443,10 +443,36 @@ def summarize_alerts(alerts) -> dict[str, Any]:
         str(getattr(alert.signature_type, "value", alert.signature_type)) for alert in alerts
     )
     by_bridge = Counter(str(alert.bridge) for alert in alerts)
+    by_cctx: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
+
+    for index, alert in enumerate(alerts, start=1):
+        bridge = str(alert.bridge)
+        correlation_id = str(alert.correlation_id) if alert.correlation_id else f"unassociated-alert-{index}"
+        signature_type = str(getattr(alert.signature_type, "value", alert.signature_type))
+        cctx_summary = by_cctx[bridge].setdefault(
+            correlation_id,
+            {
+                "alert_count": 0,
+                "signature_types": Counter(),
+            },
+        )
+        cctx_summary["alert_count"] += 1
+        cctx_summary["signature_types"][signature_type] += 1
+
+    alerts_by_cctx = {}
+    for bridge, cctxs in sorted(by_cctx.items()):
+        alerts_by_cctx[bridge] = {}
+        for cctx_id, cctx_summary in sorted(cctxs.items()):
+            alerts_by_cctx[bridge][cctx_id] = {
+                "alert_count": cctx_summary["alert_count"],
+                "signature_types": dict(sorted(cctx_summary["signature_types"].items())),
+            }
+
     return {
         "alerts_detected": len(alerts),
         "alerts_by_signature_type": dict(sorted(by_signature.items())),
         "alerts_by_bridge": dict(sorted(by_bridge.items())),
+        "alerts_by_cctx": alerts_by_cctx,
     }
 
 

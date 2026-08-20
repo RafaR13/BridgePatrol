@@ -281,7 +281,6 @@ def _performance_section(records: list[dict[str, Any]]) -> list[str]:
                     "Event groups",
                     "Events/logs",
                     "Transactions",
-                    "Alerts",
                     "Duration ms",
                     "ms/CCTX",
                     "ms/event",
@@ -296,7 +295,6 @@ def _performance_section(records: list[dict[str, Any]]) -> list[str]:
                         record.get("event_groups_analyzed"),
                         record.get("events_analyzed"),
                         record.get("transactions_analyzed"),
-                        record.get("alerts_detected"),
                         _format_ms(record.get("duration_ms")),
                         _format_ms(record.get("ms_per_cctx")),
                         _format_ms(record.get("ms_per_event")),
@@ -336,16 +334,32 @@ def _alerts_section(summary: dict[str, Any]) -> list[str]:
 
     by_bridge = summary.get("alerts_by_bridge") or {}
     by_signature = summary.get("alerts_by_signature_type") or {}
+    by_cctx = summary.get("alerts_by_cctx") or {}
 
     if by_bridge:
         lines.extend(_table(["Bridge", "Alerts"], sorted(by_bridge.items())))
+        lines.append("")
+
+    if by_cctx:
+        rows = []
+        for bridge, cctxs in sorted(by_cctx.items()):
+            for cctx_id, cctx_summary in sorted(cctxs.items()):
+                rows.append(
+                    [
+                        bridge,
+                        cctx_id,
+                        cctx_summary.get("alert_count"),
+                        _format_signature_counts(cctx_summary.get("signature_types") or {}),
+                    ]
+                )
+        lines.extend(_table(["Bridge", "CCTX", "Alerts", "Signature types"], rows))
         lines.append("")
 
     if by_signature:
         lines.extend(_table(["Signature type", "Alerts"], sorted(by_signature.items())))
         lines.append("")
 
-    if not by_bridge and not by_signature:
+    if not by_bridge and not by_signature and not by_cctx:
         lines.append("No alerts detected.")
         lines.append("")
 
@@ -360,6 +374,13 @@ def _alerts_section(summary: dict[str, Any]) -> list[str]:
         lines.append("")
 
     return lines
+
+
+def _format_signature_counts(counts: dict[str, Any]) -> str:
+    parts = []
+    for signature_type, count in sorted(counts.items()):
+        parts.append(str(signature_type) if count == 1 else f"{signature_type} ({count})")
+    return ", ".join(parts)
 
 
 def _correctness_section(summary: dict[str, Any]) -> list[str]:

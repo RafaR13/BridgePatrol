@@ -1,4 +1,4 @@
 test:
 
-- loading data from database
-- testar a correçao para datasets especificos
+- sanity checks for database-backed normalization and signature detection
+- evaluation tests and scripts live in `evaluation/`

@@ -164,7 +164,7 @@ python3 cli.py \
   --bridge polygon \
   --blockchains ethereum polygon \
   --need-normalization \
-  --evaluation-report tests/evaluation/results/evaluation.jsonl \
+  --evaluation-report evaluation/results/evaluation.jsonl \
   --evaluation-run-id local-polygon-run
 ```
 
@@ -179,7 +179,7 @@ python3 -m pytest
 Run a specific test file:
 
 ```sh
-python3 -m pytest tests/evaluation/test_metrics.py
+python3 -m pytest evaluation/test_metrics.py
 ```
 
 Run one test area:
@@ -198,23 +198,23 @@ safer to run in a clean local setup.
 Performance:
 
 ```sh
-python3 -m tests.evaluation.run_performance \
+python3 -m evaluation.run_performance \
   --bridge polygon \
-  --output tests/evaluation/results/evaluation.jsonl
+  --output evaluation/results/evaluation.jsonl
 ```
 
 Correctness without labels:
 
 ```sh
-python3 -m tests.evaluation.evaluate_correctness \
+python3 -m evaluation.evaluate_correctness \
   --bridge polygon \
-  --output tests/evaluation/results/evaluation.jsonl
+  --output evaluation/results/evaluation.jsonl
 ```
 
 Global correctness summary, excluding a bridge:
 
 ```sh
-python3 -m tests.evaluation.evaluate_correctness \
+python3 -m evaluation.evaluate_correctness \
   --bridge all \
   --exclude-bridge ronin
 ```
@@ -222,7 +222,7 @@ python3 -m tests.evaluation.evaluate_correctness \
 Global performance summary, excluding a bridge:
 
 ```sh
-python3 -m tests.evaluation.run_performance \
+python3 -m evaluation.run_performance \
   --bridge all \
   --exclude-bridge ronin
 ```
@@ -230,18 +230,18 @@ python3 -m tests.evaluation.run_performance \
 Performance can run all phases, only normalization, or only signature detection:
 
 ```sh
-python3 -m tests.evaluation.run_performance --bridge all --phase all
-python3 -m tests.evaluation.run_performance --bridge all --phase normalization
-python3 -m tests.evaluation.run_performance --bridge all --phase signature-detection
+python3 -m evaluation.run_performance --bridge all --phase all
+python3 -m evaluation.run_performance --bridge all --phase normalization
+python3 -m evaluation.run_performance --bridge all --phase signature-detection
 ```
 
 Correctness with labels:
 
 ```sh
-python3 -m tests.evaluation.evaluate_correctness \
+python3 -m evaluation.evaluate_correctness \
   --bridge polygon \
-  --labels tests/evaluation/labels/polygon.csv \
-  --output tests/evaluation/results/evaluation.jsonl
+  --labels evaluation/labels/polygon.csv \
+  --output evaluation/results/evaluation.jsonl
 ```
 
 Label CSV format:

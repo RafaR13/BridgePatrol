@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-DEFAULT_RESULTS_ROOT = Path("tests/evaluation/results")
+DEFAULT_RESULTS_ROOT = Path("evaluation/results")
 
 
 @dataclass(frozen=True)

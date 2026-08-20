@@ -14,13 +14,13 @@ Performance records include:
 Performance:
 
 ```bash
-python3 -m tests.evaluation.run_performance --bridge polygon --output tests/evaluation/results/evaluation.jsonl
+python3 -m evaluation.run_performance --bridge polygon --output evaluation/results/evaluation.jsonl
 ```
 
 Correctness without labels records counts only:
 
 ```bash
-python3 -m tests.evaluation.evaluate_correctness --bridge polygon --output tests/evaluation/results/evaluation.jsonl
+python3 -m evaluation.evaluate_correctness --bridge polygon --output evaluation/results/evaluation.jsonl
 ```
 
 Global correctness summary, excluding a bridge. This creates a timestamped
@@ -28,7 +28,7 @@ Global correctness summary, excluding a bridge. This creates a timestamped
 bridge, plus one global JSON and one global Markdown:
 
 ```bash
-python3 -m tests.evaluation.evaluate_correctness \
+python3 -m evaluation.evaluate_correctness \
   --bridge all \
   --exclude-bridge ronin
 ```
@@ -36,7 +36,7 @@ python3 -m tests.evaluation.evaluate_correctness \
 Global performance summary, excluding a bridge:
 
 ```bash
-python3 -m tests.evaluation.run_performance \
+python3 -m evaluation.run_performance \
   --bridge all \
   --exclude-bridge ronin
 ```
@@ -44,9 +44,9 @@ python3 -m tests.evaluation.run_performance \
 Performance can run all phases, only normalization, or only signature detection:
 
 ```bash
-python3 -m tests.evaluation.run_performance --bridge all --phase all
-python3 -m tests.evaluation.run_performance --bridge all --phase normalization
-python3 -m tests.evaluation.run_performance --bridge all --phase signature-detection
+python3 -m evaluation.run_performance --bridge all --phase all
+python3 -m evaluation.run_performance --bridge all --phase normalization
+python3 -m evaluation.run_performance --bridge all --phase signature-detection
 ```
 
 The performance JSON/Markdown includes `normalization_metrics`, with normalized
@@ -62,10 +62,10 @@ Correctness with labels calculates `accuracy`, `precision`, `recall`, and
 `false_positive_rate`:
 
 ```bash
-python3 -m tests.evaluation.evaluate_correctness \
+python3 -m evaluation.evaluate_correctness \
   --bridge polygon \
-  --labels tests/evaluation/labels/polygon.csv \
-  --output tests/evaluation/results/evaluation.jsonl
+  --labels evaluation/labels/polygon.csv \
+  --output evaluation/results/evaluation.jsonl
 ```
 
 Label CSV format:

@@ -10,7 +10,6 @@ class AlertSeverity(str, Enum):
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
-    # for now, all alerts will have a low severity
 
 
 class AlertStatus(str, Enum):

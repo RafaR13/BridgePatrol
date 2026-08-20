@@ -342,7 +342,9 @@ class TokenContractAttacksMixin:
 
         # check:
         #   tokens match
-        #   lock/burn's contract address is transfer's "to" address
+        #   transfer "to" is intentionally not checked here: for burn/redeem flows
+        #   it can be a zero/dead/sink address, and in several datasets
+        #   event.contract_address is the event emitter rather than the token recipient.
         #   lock/burn's "from" is transfer's "from"
         #   lock/burn amount is transfer's amount
         matching_transfers = [
@@ -350,8 +352,8 @@ class TokenContractAttacksMixin:
             for transfer in transfers
             if self._normalized_value(self._transfer_token_address(transfer))
             == self._normalized_value(event.token_in)
-            and self._normalized_value(self._transfer_to_address(transfer))
-            == self._normalized_value(event.contract_address)
+            # and self._normalized_value(self._transfer_to_address(transfer))
+            # == self._normalized_value(event.contract_address)
             and self._normalized_value(self._transfer_from_address(transfer))
             == self._normalized_value(event.actor_from)
             and self._transfer_amount(transfer) == event.amount_in
@@ -373,23 +375,22 @@ class TokenContractAttacksMixin:
             if self._normalized_value(self._transfer_from_address(transfer))
             == self._normalized_value(event.actor_from)
         ]
-        has_transfer_to_contract = any(
-            self._normalized_value(self._transfer_to_address(transfer))
-            == self._normalized_value(event.contract_address)
-            for transfer in token_transfers_from_actor
-        )
         total_transferred_from_actor = sum(
             self._transfer_amount(transfer) for transfer in token_transfers_from_actor
         )
-        if has_transfer_to_contract and total_transferred_from_actor == event.amount_in:
+        if total_transferred_from_actor == event.amount_in:
             return invalid_fields
 
-        ## lock/burn's contract address is transfer's "to" address
-        if not has_transfer_to_contract:
-            transfer_invalid_fields.append(
-                f"1) no token Transfer to the {config.event_label} contract "
-                f"(expected_to={event.contract_address or '<missing>'})"
-            )
+        ## lock/deposit's contract address is transfer's "to" address
+        # if not any(
+        #     self._normalized_value(self._transfer_to_address(transfer))
+        #     == self._normalized_value(event.contract_address)
+        #     for transfer in token_transfers_from_actor
+        # ):
+        #     transfer_invalid_fields.append(
+        #         f"1) no token Transfer to the {config.event_label} contract "
+        #         f"(expected_to={event.contract_address or '<missing>'})"
+        #     )
 
         ## lock/burn's "from" is transfer's "from"
         if not token_transfers_from_actor:

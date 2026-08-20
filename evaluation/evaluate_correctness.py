@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from uuid import uuid4
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -27,7 +27,7 @@ from evaluation.metrics import (
 )
 from evaluation.result_paths import build_evaluation_result_paths
 from evaluation.reporting import EvaluationReporter, write_json_summary
-from tests.evaluation.evaluation_utils import (
+from evaluation.evaluation_utils import (
     bridge_scope,
     count_cctx,
     count_cctx_for_bridges,
@@ -43,7 +43,7 @@ EXPECTED_POSITIVE_SIGNATURE_COUNTS_BY_BRIDGE = {
     "chainswap": {"MINT_WITHOUT_LOCK": 530},
     "meter.io": {"AMOUNT_MISMATCH": 4},
     "nomad": {"MINT_WITHOUT_LOCK": 382},
-    "pnetwork": {"CONTRACT_MISMATCH": 3},
+    "pnetwork": {"CONTRACT_MISMATCH": 3, "DANGEROUS_TRACE_OPERATION": 3},
     "qubit": {"CONTRACT_MISMATCH": 16},
     "ronin": {"MINT_WITHOUT_LOCK": 2},
     "thorchain": {

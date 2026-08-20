@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from uuid import uuid4
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -19,7 +19,7 @@ from evaluation.markdown_report import (
 )
 from evaluation.result_paths import build_evaluation_result_paths
 from evaluation.reporting import EvaluationReporter, write_json_summary
-from tests.evaluation.evaluation_utils import (
+from evaluation.evaluation_utils import (
     bridge_scope,
     clear_normalized_events_for_bridge,
     count_cctx_for_bridges,

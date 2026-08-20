@@ -32,9 +32,11 @@ def make_event(
     block_number=100,
     timestamp=100,
     token_in="0xtoken",
+    blockchain=None,
     src_blockchain="source",
     status="success",
 ):
+    blockchain = blockchain or src_blockchain
     return SimpleNamespace(
         id=event_id,
         event_type=event_type,
@@ -50,6 +52,7 @@ def make_event(
         block_number=block_number,
         timestamp=timestamp,
         raw_pk=str(event_id),
+        blockchain=blockchain,
         src_blockchain=src_blockchain,
         dst_blockchain="destination",
         status=status,

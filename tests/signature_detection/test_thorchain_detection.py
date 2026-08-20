@@ -64,7 +64,6 @@ def test_thorchain_analyse_all_only_runs_source_side_checks(monkeypatch):
     assert analyser.analyse_all() == []
     assert calls == [
         "window",
-        "incomplete_cross_chain_transactions",
         "token_contract_attacks",
         "source_trace_operations",
         "bridge_specific",

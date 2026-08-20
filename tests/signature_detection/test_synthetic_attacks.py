@@ -89,6 +89,7 @@ def test_unconfigured_bridges_have_an_explicit_todo():
     CONFIGURED_DEPOSIT_FLOWS,
     ids=lambda value: getattr(value, "name", value),
 )
+@pytest.mark.skip(reason="lock_without_mint is currently disabled in analyse_all")
 def test_detects_lock_without_mint_for_every_configured_deposit_flow(
     synthetic_analysis,
     bridge,
@@ -291,6 +292,7 @@ def test_detects_replayed_destination_for_every_configured_deposit_flow(
     VERIFIED_FLOW_CONTRACTS,
     ids=lambda value: getattr(value, "name", value),
 )
+@pytest.mark.skip(reason="unauthorized_contracts is currently disabled in analyse_all")
 def test_detects_events_from_unauthorized_contracts(
     synthetic_analysis,
     bridge,

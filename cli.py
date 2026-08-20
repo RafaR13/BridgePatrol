@@ -3,6 +3,7 @@ import argparse
 import subprocess
 import sys
 import time
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
@@ -21,6 +22,31 @@ class CliArgs:
     store_alerts: bool
     evaluation_report: str | None
     evaluation_run_id: str | None
+
+
+def _alert_signature_type(alert) -> str:
+    return str(getattr(alert.signature_type, "value", alert.signature_type))
+
+
+def _print_alerts_by_cctx(alerts) -> None:
+    if not alerts:
+        print("No alerts detected.")
+        return
+
+    alerts_by_cctx = defaultdict(list)
+    for index, alert in enumerate(alerts, start=1):
+        bridge = str(alert.bridge)
+        correlation_id = alert.correlation_id
+        cctx_id = str(correlation_id) if correlation_id else f"unassociated-alert-{index}"
+        alerts_by_cctx[(bridge, cctx_id)].append(alert)
+
+    print("Alerts by CCTX:")
+    for (bridge, cctx_id), cctx_alerts in sorted(alerts_by_cctx.items()):
+        alert_label = "alert" if len(cctx_alerts) == 1 else "alerts"
+        print(f"- {bridge} / {cctx_id}: {len(cctx_alerts)} {alert_label}")
+        for alert in cctx_alerts:
+            print(f"  - {_alert_signature_type(alert)}: {alert.title}")
+    print()
 
 
 class Cli:
@@ -163,8 +189,7 @@ class Cli:
             report_path=args.evaluation_report,
             run_id=args.evaluation_run_id,
         )
-        for alert in alerts:
-            print(f"{alert}\n")
+        _print_alerts_by_cctx(alerts)
         print("Signature detection phase completed.\n")
         print(f"Total alerts detected: {len(alerts)}")
         return 0
