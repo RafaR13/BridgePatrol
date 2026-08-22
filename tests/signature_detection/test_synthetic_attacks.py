@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -203,19 +204,96 @@ def test_detects_amount_inflation_for_every_amount_checked_flow(
     analyser = synthetic_analysis(bridge, [source, destination])
 
     alerts = analyser.amount_mismatch(bridge)
-    alerts.extend(
-        analyser.over_mint(bridge)
-        if flow_type == "deposits"
-        else analyser.over_release(bridge)
-    )
 
-    expected_inflation = (
-        SignatureType.OVER_MINT
-        if flow_type == "deposits"
-        else SignatureType.OVER_RELEASE
-    )
     assert SignatureType.AMOUNT_MISMATCH in signature_types(alerts)
-    assert expected_inflation in signature_types(alerts)
+
+
+def test_amount_mismatch_prefers_cross_chain_transaction_amounts(synthetic_analysis):
+    flow = BRIDGE_EVENT_MAP["qubit"].deposits[0]
+    source = event_for_flow(1, flow.source, "attack-3", "0xsource", flow, amount=100)
+    destination = event_for_flow(
+        2,
+        flow.destination,
+        "attack-3",
+        "0xdestination",
+        flow,
+        amount=100,
+    )
+    analyser = synthetic_analysis("qubit", [source, destination])
+    analyser._cross_chain_transactions_cache = [
+        SimpleNamespace(
+            cctx_id="cctx-1",
+            amount_in=100,
+            amount_out=150,
+            src_timestamp=100,
+            dst_timestamp=200,
+        )
+    ]
+
+    alerts = analyser.amount_mismatch("qubit")
+
+    assert len(alerts) == 1
+    assert alerts[0].correlation_id == "cctx-1"
+    assert alerts[0].src_event_id is None
+    assert alerts[0].dst_event_id is None
+
+
+def test_amount_mismatch_does_not_fallback_when_cctx_amounts_are_comparable(
+    synthetic_analysis,
+):
+    flow = BRIDGE_EVENT_MAP["qubit"].deposits[0]
+    source = event_for_flow(1, flow.source, "attack-3", "0xsource", flow, amount=100)
+    destination = event_for_flow(
+        2,
+        flow.destination,
+        "attack-3",
+        "0xdestination",
+        flow,
+        amount=150,
+    )
+    analyser = synthetic_analysis("qubit", [source, destination])
+    analyser._cross_chain_transactions_cache = [
+        SimpleNamespace(
+            cctx_id="cctx-1",
+            amount_in=100,
+            amount_out=100,
+            src_timestamp=100,
+            dst_timestamp=200,
+        )
+    ]
+
+    assert analyser.amount_mismatch("qubit") == []
+
+
+def test_amount_mismatch_falls_back_to_events_without_comparable_cctx_amounts(
+    synthetic_analysis,
+):
+    flow = BRIDGE_EVENT_MAP["qubit"].deposits[0]
+    source = event_for_flow(1, flow.source, "attack-3", "0xsource", flow, amount=100)
+    destination = event_for_flow(
+        2,
+        flow.destination,
+        "attack-3",
+        "0xdestination",
+        flow,
+        amount=150,
+    )
+    analyser = synthetic_analysis("qubit", [source, destination])
+    analyser._cross_chain_transactions_cache = [
+        SimpleNamespace(
+            cctx_id="cctx-1",
+            amount_in=None,
+            amount_out=None,
+            src_timestamp=100,
+            dst_timestamp=200,
+        )
+    ]
+
+    alerts = analyser.amount_mismatch("qubit")
+
+    assert len(alerts) == 1
+    assert alerts[0].src_event_id == source.id
+    assert alerts[0].dst_event_id == destination.id
 
 
 @pytest.mark.parametrize(
@@ -374,10 +452,8 @@ def test_qubit_uses_related_transfer_for_amount_checks(synthetic_analysis):
     analyser = synthetic_analysis("qubit", [source, proposal, transfer])
 
     alerts = analyser.amount_mismatch("qubit")
-    alerts.extend(analyser.over_mint("qubit"))
 
     assert SignatureType.AMOUNT_MISMATCH in signature_types(alerts)
-    assert SignatureType.OVER_MINT in signature_types(alerts)
     assert {alert.dst_event_id for alert in alerts} == {transfer.id}
 
 

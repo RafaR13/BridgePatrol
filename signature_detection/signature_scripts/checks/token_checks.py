@@ -1,8 +1,27 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from db.repository.detection_alert.detection_alert_model import DetectionAlert
 from db.repository.normalized_event.normalized_event_model import NormalizedEvent
 from signature_detection.constants import AlertSeverity, SignatureType
+
+
+@dataclass(frozen=True)
+class CctxAmountFields:
+    source: tuple[str, ...]
+    destination: tuple[str, ...]
+
+
+CCTX_AMOUNT_FIELDS_BY_BRIDGE = {
+    "across": CctxAmountFields(("input_amount",), ("output_amount",)),
+    "debridge": CctxAmountFields(("input_amount",), ("output_amount",)),
+    "mayan": CctxAmountFields(("input_amount",), ("output_amount",)),
+    "meter.io": CctxAmountFields(("amount_in", "src_value"), ("amount_out",)),
+    "pnetwork": CctxAmountFields(("amount_in", "src_value"), ("amount_out",)),
+    "qubit": CctxAmountFields(("amount_in", "src_value"), ("amount_out",)),
+    "thorchain": CctxAmountFields(("amount_in", "src_value"), ("amount_out",)),
+}
 
 
 class TokenChecksMixin:
@@ -24,8 +43,17 @@ class TokenChecksMixin:
 
     def amount_mismatch(self, bridge: str) -> list[DetectionAlert]:
         print("starting analysis for amount_mismatch")
-        alerts = []
+        used_cctxs, alerts = self._cctx_amount_mismatch_alerts(bridge)
+        if used_cctxs:
+            print(f"cought {len(alerts)} alerts")
+            return alerts
 
+        alerts = self._event_amount_mismatch_alerts(bridge)
+        print(f"cought {len(alerts)} alerts")
+        return alerts
+
+    def _event_amount_mismatch_alerts(self, bridge: str) -> list[DetectionAlert]:
+        alerts = []
         for flow_type in ("deposits", "withdrawals"):
             for flow in self._configured_flows(bridge, flow_type):
                 if not flow.amount_check:
@@ -86,95 +114,69 @@ class TokenChecksMixin:
                         )
                     )
 
-        print(f"cought {len(alerts)} alerts")
         return alerts
 
-    def over_mint(self, bridge: str) -> list[DetectionAlert]:
-        print("starting analysis for over_mint")
+    def _cctx_amount_mismatch_alerts(self, bridge: str) -> tuple[bool, list[DetectionAlert]]:
+        amount_fields = CCTX_AMOUNT_FIELDS_BY_BRIDGE.get(bridge)
+        if amount_fields is None:
+            return False, []
+
         alerts = []
-        for flow in self._configured_flows(bridge, "deposits"):
-            if not flow.amount_check:
+        found_comparable_cctx = False
+        for cctx in self._analysis_cross_chain_transactions():
+            source_amount = self._first_cctx_value(cctx, amount_fields.source)
+            destination_amount = self._first_cctx_value(cctx, amount_fields.destination)
+            if source_amount is None or destination_amount is None:
                 continue
 
-            grouped_events = self.fetch_event_pairs(bridge, flow)
-            for correlation_id, events in grouped_events.items():
-                if not events["destination"] or not events["source"]:
-                    continue
-                mint_event = self._pick_amount_event(events["destination"])
-                lock_event = self._pick_amount_event(events["source"])
-                mint_amount = self._amount_for_comparison(mint_event)
-                lock_amount = self._amount_for_comparison(lock_event)
-                if (
-                    mint_event is not None
-                    and lock_event is not None
-                    and mint_amount is not None
-                    and lock_amount is not None
-                    and mint_amount > lock_amount
-                ):
-                    alerts.append(
-                        self.create_detection_alert(
-                            signature_type=SignatureType.OVER_MINT,
-                            severity=AlertSeverity.LOW,
-                            bridge=bridge,
-                            correlation_id=correlation_id,
-                            correlation_type=None,
-                            src_event_id=lock_event.id,
-                            dst_event_id=mint_event.id,
-                            title=f"{bridge}: over-mint detected",
-                            description=(
-                                f"Found mint event {mint_event.event_type} with amount {mint_amount} "
-                                f"which is greater than the corresponding lock event {lock_event.event_type} "
-                                f"with amount {lock_amount} for correlation_id={correlation_id}. "
-                                f"Flow={flow.name}."
-                            ),
-                            created_at_ts=self._created_at_ts_for_event(mint_event),
-                            probability="TODO",
-                        )
-                    )
-        print(f"cought {len(alerts)} alerts")
-        return alerts
-
-    def over_release(self, bridge: str) -> list[DetectionAlert]:
-        print("starting analysis for over_release")
-        alerts = []
-        for flow in self._configured_flows(bridge, "withdrawals"):
-            if not flow.amount_check:
+            found_comparable_cctx = True
+            if source_amount == destination_amount:
                 continue
 
-            grouped_events = self.fetch_event_pairs(bridge, flow)
-            for correlation_id, events in grouped_events.items():
-                if not events["destination"] or not events["source"]:
-                    continue
-                release_event = self._pick_amount_event(events["destination"])
-                burn_event = self._pick_amount_event(events["source"])
-                release_amount = self._amount_for_comparison(release_event)
-                burn_amount = self._amount_for_comparison(burn_event)
-                if (
-                    release_event is not None
-                    and burn_event is not None
-                    and release_amount is not None
-                    and burn_amount is not None
-                    and release_amount > burn_amount
-                ):
-                    alerts.append(
-                        self.create_detection_alert(
-                            signature_type=SignatureType.OVER_RELEASE,
-                            severity=AlertSeverity.LOW,
-                            bridge=bridge,
-                            correlation_id=correlation_id,
-                            correlation_type=None,
-                            src_event_id=burn_event.id,
-                            dst_event_id=release_event.id,
-                            title=f"{bridge}: over-release detected",
-                            description=(
-                                f"Found release event {release_event.event_type} with amount {release_amount} "
-                                f"which is greater than the corresponding burn event {burn_event.event_type} "
-                                f"with amount {burn_amount} for correlation_id={correlation_id}. "
-                                f"Flow={flow.name}."
-                            ),
-                            created_at_ts=self._created_at_ts_for_event(release_event),
-                            probability="TODO",
-                        )
-                    )
-        print(f"cought {len(alerts)} alerts")
-        return alerts
+            correlation_id = self._cctx_alert_correlation_id(bridge, cctx)
+            source_token = getattr(cctx, "token_in", None)
+            destination_token = getattr(cctx, "token_out", None)
+            token_note = ""
+            if (
+                source_token is not None
+                and destination_token is not None
+                and str(source_token).lower() != str(destination_token).lower()
+            ):
+                token_note = f" Source token={source_token}; destination token={destination_token}."
+
+            alerts.append(
+                self.create_detection_alert(
+                    signature_type=SignatureType.AMOUNT_MISMATCH,
+                    severity=AlertSeverity.MEDIUM,
+                    bridge=bridge,
+                    correlation_id=correlation_id,
+                    correlation_type="cross_chain_transaction",
+                    src_event_id=None,
+                    dst_event_id=None,
+                    title=f"{bridge}: token amount mismatch detected",
+                    description=(
+                        f"Found CCTX {correlation_id} with source amount {source_amount} "
+                        f"and destination amount {destination_amount}.{token_note}"
+                    ),
+                    created_at_ts=(
+                        getattr(cctx, "dst_timestamp", None) or getattr(cctx, "src_timestamp", None)
+                    ),
+                    probability="TODO",
+                )
+            )
+
+        return found_comparable_cctx, alerts
+
+    def _first_cctx_value(self, cctx, fields: tuple[str, ...]):
+        for field in fields:
+            value = getattr(cctx, field, None)
+            if value is not None:
+                return value
+        return None
+
+    def _cctx_alert_correlation_id(self, bridge: str, cctx) -> str:
+        for field in ("cctx_id", "intent_id", "correlation_id", "deposit_id", "id"):
+            value = getattr(cctx, field, None)
+            if value is not None:
+                return str(value)
+        return f"{bridge}:unknown_cctx"

@@ -13,9 +13,7 @@ reliable signature for it, the table says `coverage gap`.
   destination execution/mint/release is present in the dataset.
 - `MINT_WITHOUT_LOCK`: a destination mint/release exists but no corresponding
   source lock/deposit is present.
-- `AMOUNT_MISMATCH`, `OVER_MINT`, `OVER_RELEASE`: destination value differs from
-  the source value, or the destination side creates/releases more value than the
-  source side justifies.
+- `AMOUNT_MISMATCH`: destination value differs from the source value.
 - `CONTRACT_MISMATCH`: the source event claims a token/amount/contract relation
   that is not supported by the underlying transaction value or transfer events.
 - `UNEXPECTED_EVENT_CALLER`: the destination event was emitted through an

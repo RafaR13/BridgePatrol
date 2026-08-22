@@ -49,8 +49,6 @@ class Analyser(
         "mint_without_lock",
         "recipient_mismatch",
         "amount_mismatch",
-        "over_mint",
-        "over_release",
         "contract_discrepancies",
     }
     EVENT_CHECKS = {
@@ -132,8 +130,6 @@ class Analyser(
 
             # Tokens
             alerts.extend(self._run_signature_check("amount_mismatch", self.amount_mismatch, self.bridge))
-            alerts.extend(self._run_signature_check("over_mint", self.over_mint, self.bridge))
-            alerts.extend(self._run_signature_check("over_release", self.over_release, self.bridge))
 
             # Contract authorization
             alerts.extend(self._run_signature_check("unauthorized_contracts", self.unauthorized_contracts, self.bridge))
@@ -234,10 +230,8 @@ class Analyser(
         }
 
     def _flows_for_cctx_group_check(self, check_name: str):
-        if check_name in {"lock_without_mint", "mint_without_lock", "over_mint"}:
+        if check_name in {"lock_without_mint", "mint_without_lock"}:
             flow_types = ("deposits",)
-        elif check_name == "over_release":
-            flow_types = ("withdrawals",)
         else:
             flow_types = ("deposits", "withdrawals")
 

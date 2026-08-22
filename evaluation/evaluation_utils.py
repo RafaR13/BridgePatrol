@@ -502,7 +502,7 @@ def predicted_positive_units_by_bridge(
         bridge = str(alert.bridge)
         unit = None
         event_cctx_ids = cctx_by_bridge_event_id.get(bridge, {})
-        for field in ("src_event_id", "dst_event_id"):
+        for field in _prediction_event_id_fields(alert):
             event_id = getattr(alert, field, None)
             if event_id is not None and event_cctx_ids.get(event_id):
                 unit = f"cctx:{event_cctx_ids[event_id]}"
@@ -567,7 +567,7 @@ def _alert_signature_type(alert) -> str:
 
 
 def _prediction_unit_for_alert(alert, event_cctx_ids: dict[int, str | None]) -> str:
-    for field in ("src_event_id", "dst_event_id"):
+    for field in _prediction_event_id_fields(alert):
         event_id = getattr(alert, field, None)
         if event_id is not None and event_cctx_ids.get(event_id):
             return f"cctx:{event_cctx_ids[event_id]}"
@@ -581,6 +581,12 @@ def _prediction_unit_for_alert(alert, event_cctx_ids: dict[int, str | None]) -> 
         f"{getattr(alert, 'src_event_id', None)}:"
         f"{getattr(alert, 'dst_event_id', None)}"
     )
+
+
+def _prediction_event_id_fields(alert) -> tuple[str, str]:
+    if _alert_signature_type(alert) == "PROOF_REPLAY":
+        return ("dst_event_id", "src_event_id")
+    return ("src_event_id", "dst_event_id")
 
 
 def _load_cctx_ids_for_event_ids(

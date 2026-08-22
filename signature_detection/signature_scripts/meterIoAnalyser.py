@@ -2,6 +2,9 @@ from db.repository.detection_alert.detection_alert_model import DetectionAlert
 from db.repository.blockchain_transactions.blockchain_transactions_repository import (
     MeterIoBlockchainTransactionRepository,
 )
+from db.repository.cross_chain_transactions.cross_chain_transactions_repository import (
+    MeterIoCrossChainTransactionRepository,
+)
 
 from .analyser import Analyser
 
@@ -17,6 +20,13 @@ class MeterIoAnalyser(Analyser):
 
     def fetch_latest_transaction_timestamp(self, start_ts: int | None = None):
         return MeterIoBlockchainTransactionRepository.get_latest_timestamp(start_ts)
+
+    def fetch_cross_chain_transactions(
+        self,
+        start_ts: int | None = None,
+        end_ts: int | None = None,
+    ):
+        return MeterIoCrossChainTransactionRepository.get_by_time_window(start_ts, end_ts)
 
     def analyse_bridge_specific_signatures(self) -> list[DetectionAlert]:
         # TODO: implement Meter.io-specific signatures.

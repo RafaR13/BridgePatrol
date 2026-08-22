@@ -46,8 +46,6 @@ def test_thorchain_analyse_all_only_runs_source_side_checks(monkeypatch):
         "mint_without_lock",
         "recipient_mismatch",
         "amount_mismatch",
-        "over_mint",
-        "over_release",
         "unauthorized_contracts",
         "check_event_callers",
         "detect_replays",
