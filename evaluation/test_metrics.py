@@ -68,18 +68,18 @@ def test_partial_attack_bridge_keeps_benign_cctx_as_true_negatives():
 
 def test_partial_attack_count_keeps_remaining_units_negative():
     metrics = calculate_bridge_baseline_metrics(
-        predicted_positive_units_by_bridge={"nomad": {f"cctx:{index}" for index in range(382)}},
+        predicted_positive_units_by_bridge={"nomad": {f"cctx:{index}" for index in range(167)}},
         cctx_analyzed_by_bridge={"nomad": 481},
         expected_positive_bridges=set(),
         complete_cctx_units_by_bridge={"nomad": {f"cctx:{index}" for index in range(481)}},
-        predicted_positive_complete_counts_by_bridge={"nomad": 382},
-        expected_positive_counts_by_bridge={"nomad": 382},
+        predicted_positive_complete_counts_by_bridge={"nomad": 167},
+        expected_positive_counts_by_bridge={"nomad": 167},
     )
 
-    assert metrics["true_positives"] == 382
+    assert metrics["true_positives"] == 167
     assert metrics["false_negatives"] == 0
     assert metrics["false_positives"] == 0
-    assert metrics["true_negatives"] == 99
+    assert metrics["true_negatives"] == 314
     assert metrics["total"] == 481
 
 
@@ -137,15 +137,15 @@ def test_partial_attack_count_extra_alerts_do_not_consume_complete_true_negative
         expected_positive_bridges=set(),
         complete_cctx_units_by_bridge={"nomad": {f"cctx:{index}" for index in range(634)}},
         predicted_positive_complete_counts_by_bridge={"nomad": 5},
-        expected_positive_counts_by_bridge={"nomad": 382},
+        expected_positive_counts_by_bridge={"nomad": 167},
         predicted_positive_expected_window_counts_by_bridge={"nomad": 679},
     )
 
-    assert metrics["true_positives"] == 382
+    assert metrics["true_positives"] == 167
     assert metrics["false_negatives"] == 0
-    assert metrics["false_positives"] == 297
-    assert metrics["true_negatives"] == 252
-    assert metrics["total"] == 931
+    assert metrics["false_positives"] == 512
+    assert metrics["true_negatives"] == 467
+    assert metrics["total"] == 1146
 
 
 def test_signature_expected_metrics_counts_expected_signatures_independently():
@@ -153,7 +153,7 @@ def test_signature_expected_metrics_counts_expected_signatures_independently():
         predicted_positive_units_by_bridge_signature={
             "thorchain": {
                 "CONTRACT_MISMATCH": {f"cctx:{index}" for index in range(9)},
-                "AMOUNT_MISMATCH": {f"cctx:{index}" for index in range(9, 51)},
+                "AMOUNT_MISMATCH": {f"cctx:{index}" for index in range(9, 50)},
             }
         },
         cctx_analyzed_by_bridge={"thorchain": 50},

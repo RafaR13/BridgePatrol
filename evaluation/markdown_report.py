@@ -454,6 +454,49 @@ def _correctness_section(summary: dict[str, Any]) -> list[str]:
         )
         lines.append("")
 
+    attack_tx_hash_comparison = summary.get("attack_tx_hash_comparison") or {}
+    if attack_tx_hash_comparison:
+        lines.extend(
+            _table(
+                ["Field", "Value"],
+                [
+                    ["Attack CSV", attack_tx_hash_comparison.get("attack_csv")],
+                    ["Signature type", attack_tx_hash_comparison.get("signature_type")],
+                    [
+                        "Expected attack tx hashes",
+                        attack_tx_hash_comparison.get("expected_attack_tx_hashes"),
+                    ],
+                    [
+                        "Predicted alert tx hashes",
+                        attack_tx_hash_comparison.get("predicted_alert_tx_hashes"),
+                    ],
+                    [
+                        "True-positive tx hashes",
+                        attack_tx_hash_comparison.get("true_positive_tx_hashes"),
+                    ],
+                    [
+                        "False-positive tx hashes",
+                        attack_tx_hash_comparison.get("false_positive_tx_hashes"),
+                    ],
+                    [
+                        "Alerts without tx hash",
+                        attack_tx_hash_comparison.get("false_positive_alerts_without_tx_hash"),
+                    ],
+                    [
+                        "False-negative tx hashes",
+                        attack_tx_hash_comparison.get("false_negative_tx_hashes"),
+                    ],
+                ],
+            )
+        )
+        missing_tx_hashes = attack_tx_hash_comparison.get("missing_attack_tx_hashes") or []
+        if missing_tx_hashes:
+            lines.append("")
+            lines.append("Missing attack tx hashes:")
+            for tx_hash in missing_tx_hashes:
+                lines.append(f"- `{_escape(str(tx_hash))}`")
+        lines.append("")
+
     if not metrics:
         note = summary.get("metrics_note") or "No correctness labels were provided for this run."
         return lines + [str(note), ""]

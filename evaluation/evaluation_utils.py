@@ -23,8 +23,8 @@ EVALUATION_START_TS = 1735689600  # 2025-01-01 00:00:00 UTC
 EVALUATION_END_TS = 1735776000  # 2025-01-02 00:00:00 UTC
 EVALUATION_WINDOWS_BY_BRIDGE = {
     "across": (1764547199, 1764550799),  # 2025-11-30 23:59:59..2025-12-01 00:59:59 UTC
-    "ccip": (1735689647, 1736035179),  # 2025-01-01 00:00:47..2025-01-04 23:59:39 UTC
-    "cctp": (1735689599, 1735775999),  # 2024-12-31 23:59:59..2025-01-01 23:59:59 UTC
+    "ccip": (1735689600, 1735732800),  # 2025-01-01 00:00:47..2025-01-01 12:00:00 UTC
+    "cctp": (1735689600, 1735776000),  # 2025-01-01 00:00:00..2025-01-01 23:59:59 UTC
     "debridge": (1733011214, 1733270399),  # 2024-12-01 00:00:14..2024-12-03 23:59:59 UTC
     "mayan": (1741219199, 1741262399),  # 2025-03-05 23:59:59..2025-03-06 11:59:59 UTC
     "nomad": (1654041916, 1659558228),  # Aggregate bounds for reporting only.
@@ -447,7 +447,9 @@ def summarize_alerts(alerts) -> dict[str, Any]:
 
     for index, alert in enumerate(alerts, start=1):
         bridge = str(alert.bridge)
-        correlation_id = str(alert.correlation_id) if alert.correlation_id else f"unassociated-alert-{index}"
+        correlation_id = (
+            str(alert.correlation_id) if alert.correlation_id else f"unassociated-alert-{index}"
+        )
         signature_type = str(getattr(alert.signature_type, "value", alert.signature_type))
         cctx_summary = by_cctx[bridge].setdefault(
             correlation_id,

@@ -10,6 +10,24 @@ from signature_detection.constants import (
 
 
 class MissingEventPairsMixin:
+    def _unique_transaction_events(self, events: list) -> list:
+        unique_events = []
+        seen_transactions = set()
+
+        for event in events:
+            transaction_hash = getattr(event, "transaction_hash", None)
+            transaction_key = (
+                str(transaction_hash).lower()
+                if transaction_hash is not None
+                else f"event:{getattr(event, 'id', len(unique_events))}"
+            )
+            if transaction_key in seen_transactions:
+                continue
+            seen_transactions.add(transaction_key)
+            unique_events.append(event)
+
+        return unique_events
+
     def _cctx_correlation_id(self, bridge: str, cctx) -> str:
         cctx_id = getattr(cctx, "cctx_id", None)
         if cctx_id is not None:
@@ -222,64 +240,61 @@ class MissingEventPairsMixin:
             for correlation_id, events in grouped_events.items():
                 if not (events["source"] and not events["destination"]):
                     continue
-                lock_event = self.pick_first(events["source"])
-
-                # no lock event too, so keep going
-                if lock_event is None:
-                    continue
-
-                event_timestamp = tx_timestamps.get(
-                    lock_event.transaction_hash, lock_event.timestamp
-                )
-                event_block_number = tx_block_numbers.get(
-                    lock_event.transaction_hash, lock_event.block_number
-                )
-                severity = AlertSeverity.MEDIUM
-                description_suffix = "No matching mint event was observed."
-                if self._event_is_recent(
-                    bridge,
-                    event_timestamp,
-                    event_block_number,
-                    getattr(lock_event, "blockchain", None),
-                ):
-                    severity = AlertSeverity.LOW
-                    description_suffix = "No matching mint event was observed yet, but the lock is still within the expected processing window."
-                probability = self._missing_pair_attack_probability(
-                    bridge,
-                    event_timestamp,
-                    missing_side="destination",
-                )
-
-                alerts.append(
-                    self.create_detection_alert(
-                        signature_type=SignatureType.LOCK_WITHOUT_MINT,
-                        severity=severity,
-                        bridge=bridge,
-                        correlation_id=correlation_id,
-                        correlation_type=None,
-                        src_event_id=lock_event.id,
-                        dst_event_id=None,
-                        title=f"{bridge}: lock event without corresponding mint event",
-                        description=(
-                            f"Found lock event {lock_event.event_type} with correlation_id={correlation_id}. "
-                            f"Flow={flow.name}. "
-                            f"{description_suffix}"
-                        ),
-                        created_at_ts=(
-                            event_timestamp if event_timestamp is not None else lock_event.timestamp
-                        ),
-                        probability=probability,
+                for lock_event in self._unique_transaction_events(events["source"]):
+                    event_timestamp = tx_timestamps.get(
+                        lock_event.transaction_hash, lock_event.timestamp
                     )
-                )
-                print(
-                    "[lock_without_mint] "
-                    f"bridge={bridge} flow={flow.name} "
-                    f"correlation_id={correlation_id} "
-                    f"event_id={lock_event.id} tx_hash={lock_event.transaction_hash} "
-                    f"event_type={lock_event.event_type} "
-                    f"timestamp={event_timestamp} block_number={event_block_number} "
-                    f"probability={probability}"
-                )
+                    event_block_number = tx_block_numbers.get(
+                        lock_event.transaction_hash, lock_event.block_number
+                    )
+                    severity = AlertSeverity.MEDIUM
+                    description_suffix = "No matching mint event was observed."
+                    if self._event_is_recent(
+                        bridge,
+                        event_timestamp,
+                        event_block_number,
+                        getattr(lock_event, "blockchain", None),
+                    ):
+                        severity = AlertSeverity.LOW
+                        description_suffix = "No matching mint event was observed yet, but the lock is still within the expected processing window."
+                    probability = self._missing_pair_attack_probability(
+                        bridge,
+                        event_timestamp,
+                        missing_side="destination",
+                    )
+
+                    alerts.append(
+                        self.create_detection_alert(
+                            signature_type=SignatureType.LOCK_WITHOUT_MINT,
+                            severity=severity,
+                            bridge=bridge,
+                            correlation_id=correlation_id,
+                            correlation_type=None,
+                            src_event_id=lock_event.id,
+                            dst_event_id=None,
+                            title=f"{bridge}: lock event without corresponding mint event",
+                            description=(
+                                f"Found lock event {lock_event.event_type} with correlation_id={correlation_id}. "
+                                f"Flow={flow.name}. "
+                                f"{description_suffix}"
+                            ),
+                            created_at_ts=(
+                                event_timestamp
+                                if event_timestamp is not None
+                                else lock_event.timestamp
+                            ),
+                            probability=probability,
+                        )
+                    )
+                    print(
+                        "[lock_without_mint] "
+                        f"bridge={bridge} flow={flow.name} "
+                        f"correlation_id={correlation_id} "
+                        f"event_id={lock_event.id} tx_hash={lock_event.transaction_hash} "
+                        f"event_type={lock_event.event_type} "
+                        f"timestamp={event_timestamp} block_number={event_block_number} "
+                        f"probability={probability}"
+                    )
         print(f"cought {len(alerts)} alerts")
         return alerts
 
@@ -300,72 +315,70 @@ class MissingEventPairsMixin:
             for correlation_id, events in grouped_events.items():
                 if not (events["source"] and not events["destination"]):
                     continue
-                mint_event = self.pick_first(events["source"])
-
-                if mint_event is None:
-                    continue
-
-                event_timestamp = tx_timestamps.get(
-                    mint_event.transaction_hash, mint_event.timestamp
-                )
-                event_block_number = tx_block_numbers.get(
-                    mint_event.transaction_hash, mint_event.block_number
-                )
-                severity = AlertSeverity.HIGH
-                description_suffix = "No matching lock event was observed."
-                if self._event_is_recent(
-                    bridge,
-                    event_timestamp,
-                    event_block_number,
-                    getattr(mint_event, "blockchain", None),
-                ):
-                    severity = AlertSeverity.MEDIUM
-                    description_suffix = "No matching lock event was observed yet, but the mint is still within the expected processing window."
-                if (
-                    bridge == "ccip"
-                    and self._event_type_value(mint_event.event_type)
-                    == "MESSAGE_EXECUTION_STATE_CHANGED"
-                ):
-                    description_suffix += (
-                        " In CCIP, ExecutionStateChanged is not exclusive to "
-                        "completed cross-chain token movements, so this alert is "
-                        "not by itself 100% evidence of an attack."
+                for mint_event in self._unique_transaction_events(events["source"]):
+                    event_timestamp = tx_timestamps.get(
+                        mint_event.transaction_hash, mint_event.timestamp
                     )
-                probability = self._missing_pair_attack_probability(
-                    bridge,
-                    event_timestamp,
-                    missing_side="source",
-                )
-
-                alerts.append(
-                    self.create_detection_alert(
-                        signature_type=SignatureType.MINT_WITHOUT_LOCK,
-                        severity=severity,
-                        bridge=bridge,
-                        correlation_id=correlation_id,
-                        correlation_type=None,
-                        src_event_id=None,
-                        dst_event_id=mint_event.id,
-                        title=f"{bridge}: mint event without corresponding lock event",
-                        description=(
-                            f"Found mint event {mint_event.event_type} with correlation_id={correlation_id}. "
-                            f"Flow={flow.name}. "
-                            f"{description_suffix}"
-                        ),
-                        created_at_ts=(
-                            event_timestamp if event_timestamp is not None else mint_event.timestamp
-                        ),
-                        probability=probability,
+                    event_block_number = tx_block_numbers.get(
+                        mint_event.transaction_hash, mint_event.block_number
                     )
-                )
-                print(
-                    "[mint_without_lock] "
-                    f"bridge={bridge} flow={flow.name} "
-                    f"correlation_id={correlation_id} "
-                    f"event_id={mint_event.id} tx_hash={mint_event.transaction_hash} "
-                    f"event_type={mint_event.event_type} "
-                    f"timestamp={event_timestamp} block_number={event_block_number} "
-                    f"probability={probability}"
-                )
+                    severity = AlertSeverity.HIGH
+                    description_suffix = "No matching lock event was observed."
+                    if self._event_is_recent(
+                        bridge,
+                        event_timestamp,
+                        event_block_number,
+                        getattr(mint_event, "blockchain", None),
+                    ):
+                        severity = AlertSeverity.MEDIUM
+                        description_suffix = "No matching lock event was observed yet, but the mint is still within the expected processing window."
+                    if (
+                        bridge == "ccip"
+                        and self._event_type_value(mint_event.event_type)
+                        == "MESSAGE_EXECUTION_STATE_CHANGED"
+                    ):
+                        description_suffix += (
+                            " In CCIP, ExecutionStateChanged is not exclusive to "
+                            "completed cross-chain token movements, so this alert is "
+                            "not by itself 100% evidence of an attack."
+                        )
+                    probability = self._missing_pair_attack_probability(
+                        bridge,
+                        event_timestamp,
+                        missing_side="source",
+                    )
+
+                    alerts.append(
+                        self.create_detection_alert(
+                            signature_type=SignatureType.MINT_WITHOUT_LOCK,
+                            severity=severity,
+                            bridge=bridge,
+                            correlation_id=correlation_id,
+                            correlation_type=None,
+                            src_event_id=None,
+                            dst_event_id=mint_event.id,
+                            title=f"{bridge}: mint event without corresponding lock event",
+                            description=(
+                                f"Found mint event {mint_event.event_type} with correlation_id={correlation_id}. "
+                                f"Flow={flow.name}. "
+                                f"{description_suffix}"
+                            ),
+                            created_at_ts=(
+                                event_timestamp
+                                if event_timestamp is not None
+                                else mint_event.timestamp
+                            ),
+                            probability=probability,
+                        )
+                    )
+                    print(
+                        "[mint_without_lock] "
+                        f"bridge={bridge} flow={flow.name} "
+                        f"correlation_id={correlation_id} "
+                        f"event_id={mint_event.id} tx_hash={mint_event.transaction_hash} "
+                        f"event_type={mint_event.event_type} "
+                        f"timestamp={event_timestamp} block_number={event_block_number} "
+                        f"probability={probability}"
+                    )
         print(f"cought {len(alerts)} alerts")
         return alerts

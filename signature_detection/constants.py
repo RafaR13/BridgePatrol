@@ -145,51 +145,60 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
         deposits=(
             EventPairFlow(
                 name="pos_deposit",
-                source=NormalizedEventType.STATE_SYNCED,
-                destination=NormalizedEventType.STATE_COMMITTED,
-                source_key=("correlation_id",),  # state_id
-                destination_key=("correlation_id",),  # state_id
+                source=NormalizedEventType.LOCKED_TOKEN,
+                destination=NormalizedEventType.TRANSFER,
+                source_key=("correlation_id",),  # source tx hash
+                destination_key=("cctx_id",),  # attached via StateCommitted tx hash
                 related_events=(
                     RelatedEvent(
-                        event_type=NormalizedEventType.LOCKED_TOKEN,
+                        event_type=NormalizedEventType.STATE_SYNCED,
                         side="source",
                         anchor_side="source",
-                        anchor_event_type=NormalizedEventType.STATE_SYNCED,
-                        anchor_field="transaction_hash",
-                        event_field="transaction_hash",
-                    ),
-                ),
-            ),
-            EventPairFlow(
-                name="plasma_deposit",
-                source=NormalizedEventType.STATE_SYNCED,
-                destination=NormalizedEventType.STATE_COMMITTED,
-                source_key=("correlation_id",),  # state_id
-                destination_key=("correlation_id",),  # state_id
-                related_events=(
-                    RelatedEvent(
-                        event_type=NormalizedEventType.NEW_DEPOSIT_BLOCK,
-                        side="source",
-                        anchor_side="source",
-                        anchor_event_type=NormalizedEventType.STATE_SYNCED,
+                        anchor_event_type=NormalizedEventType.LOCKED_TOKEN,
                         anchor_field="transaction_hash",
                         event_field="transaction_hash",
                     ),
                     RelatedEvent(
-                        event_type=NormalizedEventType.TOKEN_DEPOSITED,
+                        event_type=NormalizedEventType.STATE_COMMITTED,
+                        side="source",
+                        anchor_side="source",
+                        anchor_event_type=NormalizedEventType.STATE_SYNCED,
+                        anchor_field="correlation_id",
+                        event_field="correlation_id",
+                    ),
+                    RelatedEvent(
+                        event_type=NormalizedEventType.TRANSFER,
                         side="destination",
-                        anchor_side="destination",
+                        anchor_side="source",
                         anchor_event_type=NormalizedEventType.STATE_COMMITTED,
                         anchor_field="transaction_hash",
                         event_field="transaction_hash",
                     ),
+                ),
+                amount_check=True,
+            ),
+            EventPairFlow(
+                name="plasma_deposit",
+                source=NormalizedEventType.NEW_DEPOSIT_BLOCK,
+                destination=NormalizedEventType.TOKEN_DEPOSITED,
+                source_key=("correlation_id",),  # deposit_block_id
+                destination_key=("correlation_id",),  # deposit_count
+                related_events=(
                     RelatedEvent(
-                        event_type=NormalizedEventType.TOKEN_DEPOSITED,
-                        side="destination",
+                        event_type=NormalizedEventType.STATE_SYNCED,
+                        side="source",
                         anchor_side="source",
                         anchor_event_type=NormalizedEventType.NEW_DEPOSIT_BLOCK,
-                        anchor_field="extra_data.deposit_block_id",
-                        event_field="extra_data.deposit_block_id",
+                        anchor_field="transaction_hash",
+                        event_field="transaction_hash",
+                    ),
+                    RelatedEvent(
+                        event_type=NormalizedEventType.STATE_COMMITTED,
+                        side="source",
+                        anchor_side="source",
+                        anchor_event_type=NormalizedEventType.STATE_SYNCED,
+                        anchor_field="correlation_id",
+                        event_field="correlation_id",
                     ),
                 ),
                 amount_check=True,
@@ -263,6 +272,24 @@ BRIDGE_EVENT_MAP: Dict[str, BridgeEventConfig] = {
                 destination=NormalizedEventType.NOMAD_ROUTER_RECEIVE,
                 source_key=("src_blockchain", "dst_blockchain", "nonce"),
                 destination_key=("src_blockchain", "dst_blockchain", "nonce"),
+                related_events=(
+                    RelatedEvent(
+                        event_type=NormalizedEventType.NOMAD_ROUTER_SEND,
+                        side="source",
+                        anchor_side="source",
+                        anchor_event_type=NormalizedEventType.NOMAD_HOME_DISPATCH,
+                        anchor_field="transaction_hash",
+                        event_field="transaction_hash",
+                    ),
+                    RelatedEvent(
+                        event_type=NormalizedEventType.NOMAD_REPLICA_PROCESS,
+                        side="destination",
+                        anchor_side="destination",
+                        anchor_event_type=NormalizedEventType.NOMAD_ROUTER_RECEIVE,
+                        anchor_field="transaction_hash",
+                        event_field="transaction_hash",
+                    ),
+                ),
                 amount_check=True,
             ),
         ),

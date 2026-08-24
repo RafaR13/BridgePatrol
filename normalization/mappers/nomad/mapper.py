@@ -118,7 +118,9 @@ def map_nomad_home_dispatch(row, tx_ctx, cctx_id=None):
         block_number=tx_ctx.block_number if tx_ctx else None,
         timestamp=tx_ctx.timestamp if tx_ctx else None,
         event_type=NormalizedEventType.NOMAD_HOME_DISPATCH,
-        correlation_id=_nomad_message_correlation(row.src_blockchain, row.dst_blockchain, row.nonce),
+        correlation_id=_nomad_message_correlation(
+            row.src_blockchain, row.dst_blockchain, row.nonce
+        ),
         src_blockchain=row.src_blockchain,
         dst_blockchain=row.dst_blockchain,
         actor_from=tx_ctx.from_address if tx_ctx else None,

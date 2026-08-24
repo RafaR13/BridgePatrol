@@ -49,8 +49,6 @@ def run_for_bridge(
     report_path: str | None = None,
     run_id: str | None = None,
 ) -> list[DetectionAlert]:
-    # ensure tables exist
-    Base.metadata.create_all(bind=engine)
     bridge_name = bridge.value if isinstance(bridge, Bridges) else bridge
     known_bridges = {supported_bridge.value for supported_bridge in Bridges}
     if bridge_name not in known_bridges:
@@ -71,6 +69,9 @@ def run_for_bridge(
                 },
             )
         return []
+
+    # Ensure tables exist only after resolving a runnable analyser.
+    Base.metadata.create_all(bind=engine)
     analyser = analyser_cls()
     analyser.evaluation_reporter = build_reporter(report_path, run_id=run_id)
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 # ruff: noqa: E402
 
 import argparse
+import csv
 import sys
 from pathlib import Path
 from uuid import uuid4
@@ -20,6 +21,7 @@ from evaluation.markdown_report import (
     write_markdown_report_from_records,
 )
 from evaluation.metrics import (
+    ConfusionMatrix,
     build_confusion_matrix,
     calculate_metrics,
     calculate_signature_expected_metrics,
@@ -42,7 +44,7 @@ from evaluation.evaluation_utils import (
 EXPECTED_POSITIVE_SIGNATURE_COUNTS_BY_BRIDGE = {
     "chainswap": {"MINT_WITHOUT_LOCK": 530},
     "meter.io": {"AMOUNT_MISMATCH": 4},
-    "nomad": {"MINT_WITHOUT_LOCK": 382},
+    "nomad": {"MINT_WITHOUT_LOCK": 167},
     "pnetwork": {"CONTRACT_MISMATCH": 3, "DANGEROUS_TRACE_OPERATION": 3},
     "qubit": {"CONTRACT_MISMATCH": 16},
     "ronin": {"MINT_WITHOUT_LOCK": 2},
@@ -56,6 +58,8 @@ EXPECTED_POSITIVE_WINDOWS_BY_BRIDGE = {
     "ronin": {"start_ts": 1647820871, "end_ts": 1648166400},
 }
 INCOMPLETE_CCTX_SIGNATURE_TYPES = {"LOCK_WITHOUT_MINT", "MINT_WITHOUT_LOCK"}
+NOMAD_ATTACK_TX_HASHES_CSV = REPO_ROOT.parent / "attacks.csv"
+NOMAD_ATTACK_SIGNATURE_TYPE = "MINT_WITHOUT_LOCK"
 
 
 def parse_args() -> argparse.Namespace:
@@ -151,6 +155,124 @@ def alert_in_window(alert, window: dict[str, int]) -> bool:
     created_at_ts = getattr(alert, "created_at_ts", None)
     return (
         created_at_ts is not None and window["start_ts"] <= int(created_at_ts) <= window["end_ts"]
+    )
+
+
+def load_attack_tx_hashes(path: str | Path) -> set[str]:
+    with Path(path).open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if "dst_transaction_hash" not in (reader.fieldnames or ()):
+            raise ValueError("Attack CSV is missing dst_transaction_hash column")
+        return {
+            str(row["dst_transaction_hash"]).strip().lower()
+            for row in reader
+            if str(row.get("dst_transaction_hash", "")).strip()
+        }
+
+
+def _signature_type_value(alert) -> str:
+    return str(getattr(alert.signature_type, "value", alert.signature_type))
+
+
+def _nomad_alert_transaction_hashes(alerts: list) -> tuple[set[str], int]:
+    from db.database import get_session
+    from db.repository.normalized_event.normalized_event_model import NomadNormalizedEvent
+
+    relevant_alerts = [
+        alert
+        for alert in alerts
+        if str(getattr(alert, "bridge", "")) == "nomad"
+        and _signature_type_value(alert) == NOMAD_ATTACK_SIGNATURE_TYPE
+    ]
+    dst_event_ids = {
+        int(event_id)
+        for alert in relevant_alerts
+        for event_id in [getattr(alert, "dst_event_id", None)]
+        if event_id is not None
+    }
+    tx_hashes_by_event_id = {}
+    if dst_event_ids:
+        session = get_session()
+        try:
+            rows = (
+                session.query(NomadNormalizedEvent.id, NomadNormalizedEvent.transaction_hash)
+                .filter(NomadNormalizedEvent.id.in_(dst_event_ids))
+                .all()
+            )
+            tx_hashes_by_event_id = {
+                event_id: str(tx_hash).lower()
+                for event_id, tx_hash in rows
+                if tx_hash is not None
+            }
+        finally:
+            session.close()
+
+    predicted_tx_hashes = set()
+    unresolved_alerts = 0
+    for alert in relevant_alerts:
+        event_id = getattr(alert, "dst_event_id", None)
+        tx_hash = tx_hashes_by_event_id.get(int(event_id)) if event_id is not None else None
+        if tx_hash:
+            predicted_tx_hashes.add(tx_hash)
+        else:
+            unresolved_alerts += 1
+
+    return predicted_tx_hashes, unresolved_alerts
+
+
+def calculate_nomad_attack_tx_hash_metrics(alerts: list, attack_csv_path: str | Path) -> dict:
+    expected_tx_hashes = load_attack_tx_hashes(attack_csv_path)
+    predicted_tx_hashes, unresolved_alerts = _nomad_alert_transaction_hashes(alerts)
+
+    true_positive_tx_hashes = predicted_tx_hashes & expected_tx_hashes
+    false_positive_tx_hashes = predicted_tx_hashes - expected_tx_hashes
+    false_negative_tx_hashes = expected_tx_hashes - predicted_tx_hashes
+
+    true_positives = len(true_positive_tx_hashes)
+    false_positives = len(false_positive_tx_hashes) + unresolved_alerts
+    false_negatives = len(false_negative_tx_hashes)
+    total = true_positives + false_positives + false_negatives
+
+    return {
+        "metrics": calculate_metrics(
+            ConfusionMatrix(
+                true_positives=true_positives,
+                false_positives=false_positives,
+                true_negatives=0,
+                false_negatives=false_negatives,
+            )
+        ),
+        "attack_tx_hash_comparison": {
+            "attack_csv": str(attack_csv_path),
+            "signature_type": NOMAD_ATTACK_SIGNATURE_TYPE,
+            "expected_attack_tx_hashes": len(expected_tx_hashes),
+            "predicted_alert_tx_hashes": len(predicted_tx_hashes),
+            "true_positive_tx_hashes": true_positives,
+            "false_positive_tx_hashes": len(false_positive_tx_hashes),
+            "false_positive_alerts_without_tx_hash": unresolved_alerts,
+            "false_negative_tx_hashes": false_negatives,
+            "total_units": total,
+            "missing_attack_tx_hashes": sorted(false_negative_tx_hashes),
+        },
+    }
+
+
+def combine_metric_counts(*metrics_by_source: dict) -> dict:
+    return calculate_metrics(
+        ConfusionMatrix(
+            true_positives=sum(
+                metrics.get("true_positives", 0) for metrics in metrics_by_source
+            ),
+            false_positives=sum(
+                metrics.get("false_positives", 0) for metrics in metrics_by_source
+            ),
+            true_negatives=sum(
+                metrics.get("true_negatives", 0) for metrics in metrics_by_source
+            ),
+            false_negatives=sum(
+                metrics.get("false_negatives", 0) for metrics in metrics_by_source
+            ),
+        )
     )
 
 
@@ -276,10 +398,26 @@ def build_correctness_summary(
         return summary
 
     summary["label_count"] = 0
-    summary["labels_source"] = None
-    summary["metrics_mode"] = "signature_expected_counts"
+    use_nomad_attack_tx_hash_metrics = (
+        "nomad" in bridges and NOMAD_ATTACK_TX_HASHES_CSV.exists()
+    )
+    signature_expected_bridges = [
+        bridge
+        for bridge in bridges
+        if not (bridge == "nomad" and use_nomad_attack_tx_hash_metrics)
+    ]
+    summary["labels_source"] = (
+        str(NOMAD_ATTACK_TX_HASHES_CSV) if use_nomad_attack_tx_hash_metrics else None
+    )
+    if use_nomad_attack_tx_hash_metrics and signature_expected_bridges:
+        summary["metrics_mode"] = "signature_expected_counts_plus_nomad_attack_tx_hashes"
+    elif use_nomad_attack_tx_hash_metrics:
+        summary["metrics_mode"] = "nomad_attack_tx_hashes"
+    else:
+        summary["metrics_mode"] = "signature_expected_counts"
+
     expected_positive_counts = expected_positive_signature_counts_for_bridges(
-        bridges,
+        signature_expected_bridges,
         evaluation_windows,
     )
     summary["expected_positive_signature_counts_by_bridge"] = expected_positive_counts
@@ -312,7 +450,7 @@ def build_correctness_summary(
             predicted_positive_units.get(bridge, set())
             - predicted_incomplete_units.get(bridge, set())
         )
-        for bridge in bridges
+        for bridge in signature_expected_bridges
     }
     summary["predicted_positive_complete_cctx_units_by_bridge"] = {
         bridge: predicted_positive_complete_counts.get(bridge, 0) for bridge in bridges
@@ -320,21 +458,40 @@ def build_correctness_summary(
     summary["predicted_positive_extra_units_by_bridge"] = {
         bridge: len(predicted_incomplete_units.get(bridge, set())) for bridge in bridges
     }
-    summary["metrics"] = calculate_signature_expected_metrics(
+    signature_expected_metrics = calculate_signature_expected_metrics(
         predicted_positive_units_by_bridge_signature=predicted_positive_units_by_signature,
-        cctx_analyzed_by_bridge=cctx_by_bridge,
+        cctx_analyzed_by_bridge={
+            bridge: cctx_by_bridge.get(bridge)
+            for bridge in signature_expected_bridges
+        },
         expected_positive_signature_counts_by_bridge=expected_positive_counts,
         predicted_positive_complete_counts_by_bridge=predicted_positive_complete_counts,
         predicted_positive_expected_window_counts_by_bridge_signature=(
             predicted_positive_expected_window_counts_by_signature
         ),
     )
+    if use_nomad_attack_tx_hash_metrics:
+        tx_hash_metrics = calculate_nomad_attack_tx_hash_metrics(
+            alerts,
+            NOMAD_ATTACK_TX_HASHES_CSV,
+        )
+        summary["attack_tx_hash_comparison"] = tx_hash_metrics[
+            "attack_tx_hash_comparison"
+        ]
+        summary["metrics"] = combine_metric_counts(
+            signature_expected_metrics,
+            tx_hash_metrics["metrics"],
+        )
+    else:
+        summary["metrics"] = signature_expected_metrics
+
     summary["metrics_note"] = (
         "Signature-level expected counts: ChainSwap expects 530 MINT_WITHOUT_LOCK; "
-        "Meter.io expects 4 AMOUNT_MISMATCH; Nomad 2022-08 expects 382 "
-        "MINT_WITHOUT_LOCK; PNetwork expects 3 CONTRACT_MISMATCH; Qubit expects "
+        "Meter.io expects 4 AMOUNT_MISMATCH; Nomad MINT_WITHOUT_LOCK is evaluated "
+        "against unique dst_transaction_hash values from attacks.csv; PNetwork expects "
+        "3 CONTRACT_MISMATCH; Qubit expects "
         "16 CONTRACT_MISMATCH; Ronin 2022 expects 2 MINT_WITHOUT_LOCK; Thorchain "
-        "expects 51 LOCK_WITHOUT_MINT, 9 CONTRACT_MISMATCH, and 42 AMOUNT_MISMATCH. "
+        "expects 9 CONTRACT_MISMATCH, 41 AMOUNT_MISMATCH, and 0 LOCK_WITHOUT_MINT. "
         "Every other bridge/signature is expected negative. Alerts are deduplicated "
         "to CCTX-level units per signature when normalized event cctx_id is available. "
         "For benign bridges, predicted positive units outside the complete CCTX table "
